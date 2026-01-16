@@ -1,13 +1,3 @@
-#
-# Copyright (C) 2024 by THE-VIP-BOY-OP@Github, < https://github.com/THE-VIP-BOY-OP >.
-#
-# This file is part of < https://github.com/THE-VIP-BOY-OP/VIP-MUSIC > project,
-# and is released under the "GNU v3.0 License Agreement".
-# Please see < https://github.com/THE-VIP-BOY-OP/VIP-MUSIC/blob/master/LICENSE >
-#
-# All rights reserved.
-#
-
 import asyncio
 import shlex
 from typing import Tuple
@@ -16,7 +6,7 @@ from git.exc import GitCommandError, InvalidGitRepositoryError
 import config
 from ..logging import LOGGER
 
-# --- Loop Error Fix (Python 3.10+) ---
+# --- Loop Error Fix ---
 try:
     loop = asyncio.get_event_loop()
 except RuntimeError:
@@ -38,15 +28,10 @@ def install_req(cmd: str) -> Tuple[str, str, int, int]:
             process.returncode,
             process.pid,
         )
-
     return loop.run_until_complete(install_requirements())
-
 
 def git():
     REPO_LINK = config.UPSTREAM_REPO
-    # अगर config में ब्रांच नहीं है तो 'main' को डिफॉल्ट मानें
-    BRANCH = config.UPSTREAM_BRANCH if config.UPSTREAM_BRANCH else "main"
-    
     if config.GIT_TOKEN:
         GIT_USERNAME = REPO_LINK.split("com/")[1].split("/")[0]
         TEMP_REPO = REPO_LINK.split("https://")[1]
@@ -56,23 +41,22 @@ def git():
 
     try:
         repo = Repo()
-        LOGGER(__name__).info(f"Git Client Found [VPS DEPLOYER]")
-    except GitCommandError:
-        LOGGER(__name__).info(f"Invalid Git Command")
-        return
-    except InvalidGitRepositoryError:
+        LOGGER(__name__).info(f"Git Client Found.")
+    except (InvalidGitRepositoryError, GitCommandError):
         repo = Repo.init()
         if "origin" in repo.remotes:
             origin = repo.remote("origin")
         else:
             origin = repo.create_remote("origin", UPSTREAM_REPO)
-        
-        # यहाँ चेक किया जा रहा है कि कौन सी ब्रांच मौजूद है
         origin.fetch()
+        
+        # ऑटोमैटिक ब्रांच डिटेक्शन
         try:
+            BRANCH = config.UPSTREAM_BRANCH
             repo.create_head(BRANCH, origin.refs[BRANCH])
-        except Exception:
-            BRANCH = "main" # अगर master फेल हुआ तो main ट्राई करें
+        except:
+            # अगर config वाली ब्रांच नहीं मिली, तो जो भी पहली ब्रांच मिले उसे पकड़ लो
+            BRANCH = origin.refs[0].remote_head
             repo.create_head(BRANCH, origin.refs[BRANCH])
             
         repo.heads[BRANCH].set_tracking_branch(origin.refs[BRANCH])
@@ -80,25 +64,16 @@ def git():
 
     try:
         nrs = repo.remote("origin")
-    except Exception:
+    except:
         nrs = repo.create_remote("origin", UPSTREAM_REPO)
 
-    # --- यहाँ मुख्य सुधार है (Branch Fetch Fix) ---
     try:
-        nrs.fetch(BRANCH)
+        # यहाँ हम चेक कर रहे हैं कि रिमोट पर कौन सी ब्रांच है
+        nrs.fetch()
+        active_branch = repo.active_branch.name
+        nrs.pull(active_branch)
+        LOGGER(__name__).info(f"Successfully updated from branch: {active_branch}")
     except Exception as e:
-        LOGGER(__name__).error(f"Fetch failed for {BRANCH}. Trying 'main' branch...")
-        BRANCH = "main"
-        try:
-            nrs.fetch(BRANCH)
-        except Exception as final_err:
-            LOGGER(__name__).error(f"Update failed: {final_err}. Starting bot without update.")
-            return
+        LOGGER(__name__).error(f"Update skipped due to: {e}")
 
-    try:
-        nrs.pull(BRANCH)
-    except GitCommandError:
-        repo.git.reset("--hard", "FETCH_HEAD")
-    
     install_req("pip3 install --no-cache-dir -r requirements.txt")
-    LOGGER(__name__).info(f"Fetched Updates from: {REPO_LINK}")
