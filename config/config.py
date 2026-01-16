@@ -29,6 +29,13 @@ BOT_TOKEN = getenv("BOT_TOKEN")
 
 MONGO_DB_URI = getenv("MONGO_DB_URI", None)
 
+# -----------------------------------------------------------------
+# YOUTUBE API KEYS (MULTI-KEY SUPPORT)
+# यहाँ अपनी सभी Keys को कोमा (,) लगाकर डालें। 
+# उदाहरण: "key1, key2, key3"
+# -----------------------------------------------------------------
+API_KEY = getenv("API_KEY", "AIzaSyB1AXaaVTAAnbU43JkpkbeEl0Ej-sEXSDw, AIzaSyCle_ElS0drPEw95NU9rwW39qu06OY4dD8",)
+# -----------------------------------------------------------------
 
 CLEANMODE_DELETE_MINS = int(
     getenv("CLEANMODE_MINS", "18000")
