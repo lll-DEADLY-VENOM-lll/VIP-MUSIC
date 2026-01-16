@@ -31,7 +31,9 @@ def help_back_markup(_):
     upl = InlineKeyboardMarkup(
         [
             [
-                InlineKeyboardButton(text=_["BACK_BUTTON"], callback_data=f"feature"),
+                InlineKeyboardButton(
+                    text=_["BACK_BUTTON"], callback_data=f"settings_back_helper"
+                ),
                 InlineKeyboardButton(text=_["CLOSE_BUTTON"], callback_data=f"close"),
             ]
         ]
