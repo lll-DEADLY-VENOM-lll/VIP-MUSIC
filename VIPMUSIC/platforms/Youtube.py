@@ -1,3 +1,9 @@
+# Copyright (C) 2024 by THE-VIP-BOY-OP@Github, <https://github.com/THE-VIP-BOY-OP>.
+# This file is part of <https://github.com/THE-VIP-BOY-OP/VIP-MUSIC> project,
+# and is released under the "GNU v3.0 License Agreement".
+# Please see <https://github.com/THE-VIP-BOY-OP/VIP-MUSIC/blob/master/LICENSE>
+# All rights reserved.
+
 import asyncio
 import os
 import re
@@ -10,11 +16,10 @@ from pyrogram.types import Message
 from googleapiclient.discovery import build 
 from googleapiclient.errors import HttpError
 
-import config # सुनिश्चित करें कि config.py सही से इम्पोर्ट हो रहा है
+import config 
 from VIPMUSIC.utils.formatters import time_to_seconds
 
 # --- API ROTATION LOGIC ---
-# config.py में API_KEY = "key1, key2, key3" इस तरह से लिखें
 API_KEYS = [k.strip() for k in config.API_KEY.split(",")]
 
 def get_youtube_client():
@@ -77,7 +82,7 @@ class YouTubeAPI:
             match = re.search(r"(?:v=|\/)([0-9A-Za-z_-]{11})", link)
             vidid = match.group(1) if match else None
         
-        youtube = get_youtube_client() # हर बार नई Key का मौका
+        youtube = get_youtube_client() 
         
         try:
             if not vidid:
@@ -96,9 +101,8 @@ class YouTubeAPI:
             return title, d_min, d_sec, video_data["snippet"]["thumbnails"]["high"]["url"], vidid
         
         except HttpError as e:
-            if e.resp.status == 403: # Quota Exceeded
-                print("One API Key Quota Finished, Retrying with another...")
-                return await self.details(link, videoid) # दोबारा कोशिश करें (नई key के साथ)
+            if e.resp.status == 403: 
+                return await self.details(link, videoid) 
             return None
 
     async def title(self, link: str, videoid: Union[bool, str] = None):
@@ -178,3 +182,6 @@ class YouTubeAPI:
 
         downloaded_file = await loop.run_in_executor(None, audio_dl)
         return downloaded_file, True
+
+# --- यह लाइन एरर को ठीक करेगी ---
+cookies = cookie_txt_file
