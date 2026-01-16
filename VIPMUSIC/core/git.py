@@ -78,7 +78,7 @@ def git():
     nrs.fetch(config.UPSTREAM_BRANCH)
     try:
         nrs.pull(config.UPSTREAM_BRANCH)
-    except GitCommandError:
+    except GitCommandError: git fetch -v -- origin master
         repo.git.reset("--hard", "FETCH_HEAD")
     install_req("pip3 install --no-cache-dir -r requirements.txt")
     LOGGER(__name__).info(f"Fetched Updates from: {REPO_LINK}")
