@@ -36,3 +36,4 @@ flask
 gunicorn==20.1.0
 yt-dlp
 youtube-search-python
+safoneAPI
