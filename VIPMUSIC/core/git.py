@@ -11,21 +11,17 @@
 import asyncio
 import shlex
 from typing import Tuple
-
 from git import Repo
 from git.exc import GitCommandError, InvalidGitRepositoryError
-
 import config
-
 from ..logging import LOGGER
 
-# --- Fix for RuntimeError: There is no current event loop ---
+# --- Loop Error Fix (Python 3.10+) ---
 try:
     loop = asyncio.get_event_loop()
 except RuntimeError:
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-# -----------------------------------------------------------
 
 def install_req(cmd: str) -> Tuple[str, str, int, int]:
     async def install_requirements():
@@ -48,43 +44,54 @@ def install_req(cmd: str) -> Tuple[str, str, int, int]:
 
 def git():
     REPO_LINK = config.UPSTREAM_REPO
+    # Branch handle: Default to main if not specified correctly
+    BRANCH = config.UPSTREAM_BRANCH if config.UPSTREAM_BRANCH else "main"
+    
     if config.GIT_TOKEN:
         GIT_USERNAME = REPO_LINK.split("com/")[1].split("/")[0]
         TEMP_REPO = REPO_LINK.split("https://")[1]
         UPSTREAM_REPO = f"https://{GIT_USERNAME}:{config.GIT_TOKEN}@{TEMP_REPO}"
     else:
         UPSTREAM_REPO = config.UPSTREAM_REPO
+
     try:
         repo = Repo()
         LOGGER(__name__).info(f"Git Client Found [VPS DEPLOYER]")
     except GitCommandError:
         LOGGER(__name__).info(f"Invalid Git Command")
+        return
     except InvalidGitRepositoryError:
         repo = Repo.init()
         if "origin" in repo.remotes:
             origin = repo.remote("origin")
         else:
             origin = repo.create_remote("origin", UPSTREAM_REPO)
+        
         origin.fetch()
-        repo.create_head(
-            config.UPSTREAM_BRANCH,
-            origin.refs[config.UPSTREAM_BRANCH],
-        )
-        repo.heads[config.UPSTREAM_BRANCH].set_tracking_branch(
-            origin.refs[config.UPSTREAM_BRANCH]
-        )
-        repo.heads[config.UPSTREAM_BRANCH].checkout(True)
+        repo.create_head(BRANCH, origin.refs[BRANCH])
+        repo.heads[BRANCH].set_tracking_branch(origin.refs[BRANCH])
+        repo.heads[BRANCH].checkout(True)
 
-        try:
-            repo.create_remote("origin", config.UPSTREAM_REPO)
-        except BaseException:
-            pass
-
-    nrs = repo.remote("origin")
-    nrs.fetch(config.UPSTREAM_BRANCH)
     try:
-        nrs.pull(config.UPSTREAM_BRANCH)
+        nrs = repo.remote("origin")
+    except Exception:
+        nrs = repo.create_remote("origin", UPSTREAM_REPO)
+
+    try:
+        nrs.fetch(BRANCH)
+    except Exception as e:
+        LOGGER(__name__).error(f"Fetch failed: {str(e)}. Trying to fix branch...")
+        # अगर master नहीं मिलता तो main ट्राई करेगा
+        BRANCH = "main" 
+        try:
+            nrs.fetch(BRANCH)
+        except:
+            return
+
+    try:
+        nrs.pull(BRANCH)
     except GitCommandError:
         repo.git.reset("--hard", "FETCH_HEAD")
+    
     install_req("pip3 install --no-cache-dir -r requirements.txt")
-    LOGGER(__name__).info(f"Fetched Updates from: UPSTREAM_REPO")
+    LOGGER(__name__).info(f"Fetched Updates from: {REPO_LINK}")
