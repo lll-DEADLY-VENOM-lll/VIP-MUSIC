@@ -1,8 +1,5 @@
 # Copyright (C) 2024 by THE-VIP-BOY-OP@Github, <https://github.com/THE-VIP-BOY-OP>.
-# This file is part of <https://github.com/THE-VIP-BOY-OP/VIP-MUSIC> project,
-# and is released under the "GNU v3.0 License Agreement".
-# Please see <https://github.com/THE-VIP-BOY-OP/VIP-MUSIC/blob/master/LICENSE>
-# All rights reserved.
+# This file is part of <https://github.com/THE-VIP-BOY-OP/VIP-MUSIC> project.
 
 import asyncio
 import os
@@ -19,13 +16,14 @@ from googleapiclient.errors import HttpError
 import config 
 from VIPMUSIC.utils.formatters import time_to_seconds
 
-# --- API ROTATION LOGIC ---
+# --- IMPROVED API ROTATION LOGIC ---
 API_KEYS = [k.strip() for k in config.API_KEY.split(",")]
+# Global index tracker taaki keys sequence mein chalein
+API_INDEX = 0
 
-def get_youtube_client():
-    """रैंडम तरीके से एक API Key चुनकर क्लाइंट बनाता है"""
-    selected_key = random.choice(API_KEYS)
-    return build("youtube", "v3", developerKey=selected_key, static_discovery=False)
+def get_youtube_client(index):
+    """Specific index se API client banata hai"""
+    return build("youtube", "v3", developerKey=API_KEYS[index], static_discovery=False)
 
 async def shell_cmd(cmd):
     proc = await asyncio.create_subprocess_shell(
@@ -37,11 +35,9 @@ async def shell_cmd(cmd):
     if errorz:
         if "unavailable videos are hidden" in (errorz.decode("utf-8")).lower():
             return out.decode("utf-8")
-        else:
-            return errorz.decode("utf-8")
+        return errorz.decode("utf-8")
     return out.decode("utf-8")
 
-# --- COOKIES FILE SETUP ---
 cookie_txt_file = "VIPMUSIC/cookies.txt"
 if not os.path.exists(cookie_txt_file):
     cookie_txt_file = None
@@ -77,33 +73,43 @@ class YouTubeAPI:
         return None
 
     async def details(self, link: str, videoid: Union[bool, str] = None):
+        global API_INDEX
+        
         if videoid: vidid = link
         else:
             match = re.search(r"(?:v=|\/)([0-9A-Za-z_-]{11})", link)
             vidid = match.group(1) if match else None
-        
-        youtube = get_youtube_client() 
-        
-        try:
-            if not vidid:
-                search_response = await asyncio.to_thread(
-                    youtube.search().list(q=link, part="id", maxResults=1, type="video").execute
+
+        # Saari keys ko ek baar check karne ke liye loop
+        for _ in range(len(API_KEYS)):
+            youtube = get_youtube_client(API_INDEX)
+            try:
+                if not vidid:
+                    search_response = await asyncio.to_thread(
+                        youtube.search().list(q=link, part="id", maxResults=1, type="video").execute
+                    )
+                    if not search_response.get("items"): return None
+                    vidid = search_response["items"][0]["id"]["videoId"]
+                
+                video_response = await asyncio.to_thread(
+                    youtube.videos().list(part="snippet,contentDetails", id=vidid).execute
                 )
-                if not search_response.get("items"): return None
-                vidid = search_response["items"][0]["id"]["videoId"]
-            
-            video_response = await asyncio.to_thread(
-                youtube.videos().list(part="snippet,contentDetails", id=vidid).execute
-            )
-            if not video_response.get("items"): return None
-            video_data = video_response["items"][0]
-            title, d_min, d_sec = video_data["snippet"]["title"], *self.parse_duration(video_data["contentDetails"]["duration"])
-            return title, d_min, d_sec, video_data["snippet"]["thumbnails"]["high"]["url"], vidid
+                if not video_response.get("items"): return None
+                
+                video_data = video_response["items"][0]
+                title, d_min, d_sec = video_data["snippet"]["title"], *self.parse_duration(video_data["contentDetails"]["duration"])
+                return title, d_min, d_sec, video_data["snippet"]["thumbnails"]["high"]["url"], vidid
+
+            except HttpError as e:
+                if e.resp.status in [403, 429]: # Quota Limit ya Rate Limit
+                    # Agli key par shift karein
+                    API_INDEX = (API_INDEX + 1) % len(API_KEYS)
+                    continue # Loop dobara chalega nayi key ke saath
+                return None # Kuch aur error ho toh stop
+            except Exception:
+                return None
         
-        except HttpError as e:
-            if e.resp.status == 403: 
-                return await self.details(link, videoid) 
-            return None
+        return None # Agar saari keys exhaust ho gayi
 
     async def title(self, link: str, videoid: Union[bool, str] = None):
         res = await self.details(link, videoid)
@@ -140,22 +146,26 @@ class YouTubeAPI:
         return [k for k in playlist.split("\n") if k != ""]
 
     async def slider(self, link: str, query_type: int, videoid: Union[bool, str] = None):
-        youtube = get_youtube_client()
-        try:
-            search_response = await asyncio.to_thread(
-                youtube.search().list(q=link, part="snippet", maxResults=10, type="video").execute
-            )
-            if not search_response.get("items"): return None
-            result = search_response["items"][query_type]
-            vidid, title, thumb = result["id"]["videoId"], result["snippet"]["title"], result["snippet"]["thumbnails"]["high"]["url"]
-            
-            video_res = await asyncio.to_thread(youtube.videos().list(part="contentDetails", id=vidid).execute)
-            d_min, _ = self.parse_duration(video_res["items"][0]["contentDetails"]["duration"])
-            return title, d_min, thumb, vidid
-        except HttpError as e:
-            if e.resp.status == 403:
-                return await self.slider(link, query_type, videoid)
-            return None
+        global API_INDEX
+        for _ in range(len(API_KEYS)):
+            youtube = get_youtube_client(API_INDEX)
+            try:
+                search_response = await asyncio.to_thread(
+                    youtube.search().list(q=link, part="snippet", maxResults=10, type="video").execute
+                )
+                if not search_response.get("items"): return None
+                result = search_response["items"][query_type]
+                vidid, title, thumb = result["id"]["videoId"], result["snippet"]["title"], result["snippet"]["thumbnails"]["high"]["url"]
+                
+                video_res = await asyncio.to_thread(youtube.videos().list(part="contentDetails", id=vidid).execute)
+                d_min, _ = self.parse_duration(video_res["items"][0]["contentDetails"]["duration"])
+                return title, d_min, thumb, vidid
+            except HttpError as e:
+                if e.resp.status in [403, 429]:
+                    API_INDEX = (API_INDEX + 1) % len(API_KEYS)
+                    continue
+                return None
+        return None
 
     async def download(self, link: str, mystic, video=None, videoid=None, songaudio=None, songvideo=None, format_id=None, title=None) -> str:
         if videoid: link = self.base + link
@@ -183,5 +193,4 @@ class YouTubeAPI:
         downloaded_file = await loop.run_in_executor(None, audio_dl)
         return downloaded_file, True
 
-# --- यह लाइन एरर को ठीक करेगी ---
 cookies = cookie_txt_file
