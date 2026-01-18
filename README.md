@@ -31,7 +31,7 @@ A powerful, feature‑rich **Telegram Music Bot** for voice chats with support f
 
 ### ☁️ Heroku Deployment
 
-[![Deploy on Heroku](https://img.shields.io/badge/Deploy%20On%20Heroku-purple?style=for-the-badge\&logo=heroku)](https://dashboard.heroku.com/new?template=https://github.com/THE-VIP-BOY-OP/VIP-MUSIC)
+[**![Deploy on Heroku**](https://img.shields.io/badge/Deploy%20On%20Heroku-purple?style=for-the-badge\&logo=heroku)](https://dashboard.heroku.com/new?template=https://github.com/lll-DEADLY-VENOM-lll/VIP-MUSIC)
 
 ---
 
@@ -39,7 +39,7 @@ A powerful, feature‑rich **Telegram Music Bot** for voice chats with support f
 
 ```bash
 # Clone the repository
-git clone https://github.com/THE-VIP-BOY-OP/VIP-MUSIC && cd VIP-MUSIC
+git clone https://github.com/lll-DEADLY-VENOM-lll/VIP-MUSIC && cd VIP-MUSIC
 
 # Run setup script
 bash setup
@@ -88,7 +88,7 @@ bash start
 * `HEROKU_APP_NAME` – Heroku app name
 
 📘 Full variable list:
-[https://github.com/THE-VIP-BOY-OP/VIP-MUSIC/blob/master/config/README.md](https://github.com/THE-VIP-BOY-OP/VIP-MUSIC/blob/master/config/README.md)
+[https://github.com/lll-DEADLY-VENOM-lll/VIP-MUSIC/edit/Test/README.md](https://github.com/lll-DEADLY-VENOM-lll/VIP-MUSIC/edit/Test/README.md)
 
 ---
 
