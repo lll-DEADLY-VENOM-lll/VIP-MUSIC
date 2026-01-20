@@ -11,7 +11,7 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 import config # सुनिश्चित करें कि config.py सही से इम्पोर्ट हो रहा है
-from BIGFM.utils.formatters import time_to_seconds
+from VIPMUSIC.utils.formatters import time_to_seconds
 
 # --- API ROTATION LOGIC ---
 # config.py में API_KEY = "key1, key2, key3" इस तरह से लिखें
