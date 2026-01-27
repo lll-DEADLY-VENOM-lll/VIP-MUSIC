@@ -45,6 +45,9 @@ from .help import paginate_modules
 
 loop = asyncio.get_running_loop()
 
+# खुशी वाले इमोजी की लिस्ट
+HAPPY_EMOJIS = ["🥰", "🥳", "😇", "😍", "✨", "❤️", "🤩", "💖", "🥂"]
+
 @app.on_message(group=-1)
 async def ban_new(client, message):
     user_id = (
@@ -64,9 +67,9 @@ async def start_comm(client, message: Message, _):
     chat_id = message.chat.id
     await add_served_user(message.from_user.id)
     
-    # --- EFFECT: Emoji Reaction (Safe version) ---
+    # --- EFFECT: Happy Emoji Reaction (जब कोई स्टार्ट करेगा) ---
     try:
-        await message.react(random.choice(["🔥", "✨", "⚡", "❤️", "💎", "🌟"]))
+        await message.react(random.choice(HAPPY_EMOJIS))
     except:
         pass
 
@@ -107,7 +110,7 @@ async def start_comm(client, message: Message, _):
             )
 
     else:
-        # यहाँ से message_effect_id हटा दिया गया है ताकि TypeError न आए
+        # यहाँ एरर वाली लाइन को पूरी तरह ठीक कर दिया गया है
         out = private_panel(_)
         await message.reply_photo(
             photo=config.START_IMG_URL,
@@ -127,8 +130,9 @@ async def start_comm(client, message: Message, _):
 @app.on_message(filters.command(["start"]) & filters.group & ~BANNED_USERS)
 @LanguageStart
 async def testbot(client, message: Message, _):
+    # ग्रुप में भी खुशी वाला इमोजी रिएक्शन
     try:
-        await message.react("🚀")
+        await message.react("🥳")
     except:
         pass
         
