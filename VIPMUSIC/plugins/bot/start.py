@@ -64,8 +64,9 @@ async def start_comm(client, message: Message, _):
     chat_id = message.chat.id
     await add_served_user(message.from_user.id)
     
-    # यूजर द्वारा भेजे गए /start कमांड पर रिएक्शन
+    # यूजर के मैसेज पर 0.5 सेकंड बाद रिएक्शन
     try:
+        await asyncio.sleep(0.5)
         await message.react("🕊️")
     except:
         pass
@@ -82,7 +83,9 @@ async def start_comm(client, message: Message, _):
                     caption=_["help_1"],
                     reply_markup=keyboard,
                 )
-                try: await m.react("💡")
+                try: 
+                    await asyncio.sleep(0.5) 
+                    await m.react("💡")
                 except: pass
                 return
             else:
@@ -143,7 +146,9 @@ async def start_comm(client, message: Message, _):
                 thumbnail = await YouTube.thumbnail(videoid, True)
                 await m.delete()
                 st_msg = await message.reply_photo(photo=thumbnail, caption=msg)
-                try: await st_msg.react("📊")
+                try: 
+                    await asyncio.sleep(0.5)
+                    await st_msg.react("📊")
                 except: pass
             except:
                 return
@@ -183,7 +188,7 @@ async def start_comm(client, message: Message, _):
             await app.send_photo(message.chat.id, photo=thumbnail, caption=searched_text, parse_mode=ParseMode.MARKDOWN, reply_markup=key)
 
     else:
-        # यह वह हिस्सा है जो आपके स्क्रीनशॉट वाले पेज को भेजता है
+        # यह वह पेज है जिसका आपने स्क्रीनशॉट दिया है
         out = private_panel(_)
         main_msg = await message.reply_photo(
             photo=config.START_IMG_URL,
@@ -191,8 +196,9 @@ async def start_comm(client, message: Message, _):
             reply_markup=InlineKeyboardMarkup(out),
         )
         
-        # बॉट अपने भेजे गए फोटो मैसेज पर खुद रिएक्शन देगा (स्क्रीनशॉट वाला पेज)
+        # 0.5 सेकंड रुककर फोटो मैसेज पर रिएक्शन देना
         try:
+            await asyncio.sleep(0.5) 
             await main_msg.react("🔥")
         except:
             pass
@@ -223,8 +229,10 @@ async def testbot(client, message: Message, _):
             reply_markup=InlineKeyboardMarkup(out),
         )
     
-    # ग्रुप में मैसेज पर रिएक्शन
-    try: await m.react("⚡")
+    # ग्रुप मैसेज पर 0.5 सेकंड बाद रिएक्शन
+    try: 
+        await asyncio.sleep(0.5)
+        await m.react("⚡")
     except: pass
     
     return await add_served_chat(message.chat.id)
@@ -235,7 +243,7 @@ async def welcome(client, message: Message):
     chat_id = message.chat.id
     if config.PRIVATE_BOT_MODE == str(True):
         if not await is_served_private_chat(message.chat.id):
-            await message.reply_text("**ᴛʜɪs ʙᴏᴛ's ᴘʀɪᴠᴀᴛᴇ ᴍᴏᴅᴇ ʜᴀs ʙᴇᴇɴ ᴇɴᴀʙʟᴇᴅ ᴏɴʟʏ ᴍʏ ᴏᴡɴᴇʀ ᴄᴀɴ ᴜsᴇ ᴛʜɪs...")
+            await message.reply_text("**ᴛʜɪs ʙᴏᴛ's ᴘʀɪᴠᴀᴛᴇ ᴍᴏᴅᴇ ʜᴀs ʙᴇᴇɴ ᴇɴᴀʙʟᴇᴅ...")
             return await app.leave_chat(message.chat.id)
     else:
         await add_served_chat(chat_id)
