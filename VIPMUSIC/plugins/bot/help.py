@@ -90,7 +90,7 @@ def paginate_modules(page_n, module_dict, prefix, chat=None, close: bool = False
                     ),
                 ),
                 EqInlineKeyboardButton(
-                    "⤴️ ʙᴀᴄᴋ" if not close else "✖️ ᴄʟᴏsᴇ",
+                    " ↻ ʙᴀᴄᴋ" if not close else "✖️ ᴄʟᴏsᴇ",
                     callback_data="settingsback_helper" if not close else "close",
                 ),
                 EqInlineKeyboardButton(
@@ -103,7 +103,7 @@ def paginate_modules(page_n, module_dict, prefix, chat=None, close: bool = False
         pairs.append(
             [
                 EqInlineKeyboardButton(
-                    "⤴️ ʙᴀᴄᴋ" if not close else "✖️ ᴄʟᴏsᴇ",
+                    " ↻ ʙᴀᴄᴋ" if not close else "✖️ ᴄʟᴏsᴇ",
                     callback_data="settingsback_helper" if not close else "close",
                 ),
             ]
@@ -202,7 +202,7 @@ async def help_button(client, query):
             [
                 [
                     InlineKeyboardButton(
-                        text="⤴️ ʙᴀᴄᴋ", callback_data=f"help_back({prev_page_num})"
+                        text=" ↻ ʙᴀᴄᴋ", callback_data=f"help_back({prev_page_num})"
                     ),
                     InlineKeyboardButton(text="✖️ ᴄʟᴏsᴇ", callback_data="close"),
                 ],
