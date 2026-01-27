@@ -27,6 +27,15 @@ HELP_COMMAND = get_command("HELP_COMMAND")
 COLUMN_SIZE = 4  
 NUM_COLUMNS = 3  
 
+# Font transformation function (Normal to Small Caps 'ʜʟᴏ' style)
+def get_small_caps(text):
+    small_caps_map = {
+        "a": "ᴀ", "b": "ʙ", "c": "ᴄ", "d": "ᴅ", "e": "ᴇ", "f": "ғ", "g": "ɢ", "h": "ʜ",
+        "i": "ɪ", "j": "ᴊ", "k": "ᴋ", "l": "ʟ", "m": "ᴍ", "n": "ɴ", "o": "ᴏ", "p": "ᴘ",
+        "q": "ǫ", "r": "ʀ", "s": "s", "t": "ᴛ", "u": "ᴜ", "v": "ᴠ", "w": "ᴡ", "x": "x",
+        "y": "ʏ", "z": "ᴢ",
+    }
+    return "".join(small_caps_map.get(char.lower(), char) for char in text)
 
 class EqInlineKeyboardButton(InlineKeyboardButton):
     def __eq__(self, other):
@@ -44,7 +53,7 @@ def paginate_modules(page_n, module_dict, prefix, chat=None, close: bool = False
         modules = sorted(
             [
                 EqInlineKeyboardButton(
-                    f"➩ {x.__MODULE__}", 
+                    get_small_caps(x.__MODULE__), # RED CIRCLE AREA: Arrow removed, only Small Caps font
                     callback_data="{}_module({},{})".format(
                         prefix, x.__MODULE__.lower(), page_n
                     ),
@@ -56,7 +65,7 @@ def paginate_modules(page_n, module_dict, prefix, chat=None, close: bool = False
         modules = sorted(
             [
                 EqInlineKeyboardButton(
-                    f"➩ {x.__MODULE__}",
+                    get_small_caps(x.__MODULE__), # RED CIRCLE AREA: Arrow removed, only Small Caps font
                     callback_data="{}_module({},{},{})".format(
                         prefix, chat, x.__MODULE__.lower(), page_n
                     ),
@@ -74,15 +83,15 @@ def paginate_modules(page_n, module_dict, prefix, chat=None, close: bool = False
         pairs = pairs[modulo_page * COLUMN_SIZE : COLUMN_SIZE * (modulo_page + 1)] + [
             (
                 EqInlineKeyboardButton(
-                    "⇜ ᴘʀᴇᴠ",
+                    "⇜ ᴘʀᴇᴠ", # Keeping your navigation arrows
                     callback_data="{}_prev({})".format(
                         prefix,
                         modulo_page - 1 if modulo_page > 0 else max_num_pages - 1,
                     ),
                 ),
                 EqInlineKeyboardButton(
-                    "ᴄʟᴏsᴇ" if close else "⤴ ʙᴀᴄᴋ",
-                    callback_data="close" if close else "settingsback_helper",
+                    "⤴️ ʙᴀᴄᴋ" if not close else "✖️ ᴄʟᴏsᴇ",
+                    callback_data="settingsback_helper" if not close else "close",
                 ),
                 EqInlineKeyboardButton(
                     "ɴᴇxᴛ ⇝",
@@ -94,8 +103,8 @@ def paginate_modules(page_n, module_dict, prefix, chat=None, close: bool = False
         pairs.append(
             [
                 EqInlineKeyboardButton(
-                    "ᴄʟᴏsᴇ" if close else "⤴ ʙᴀᴄᴋ",
-                    callback_data="close" if close else "settingsback_helper",
+                    "⤴️ ʙᴀᴄᴋ" if not close else "✖️ ᴄʟᴏsᴇ",
+                    callback_data="settingsback_helper" if not close else "close",
                 ),
             ]
         )
@@ -110,7 +119,6 @@ async def helper_private(
 ):
     is_callback = isinstance(update, types.CallbackQuery)
     
-    # Simple & Clean Arrow Design
     text = (
         "<b>➲ ᴅᴀɴᴄᴇ ᴍᴀsᴛᴇʀ ʜᴇʟᴘ ᴍᴇɴᴜ</b>\n\n"
         "➤ ᴄʟɪᴄᴋ ᴏɴ ᴛʜᴇ ʙᴜᴛᴛᴏɴs ʙᴇʟᴏᴡ ᴛᴏ\n"
@@ -178,10 +186,10 @@ async def help_button(client, query):
         prev_page_num = int(mod_match.group(2))
         
         text = (
-            f"<b>➲ ᴍᴏᴅᴜʟᴇ: {HELPABLE[module].__MODULE__}</b>\n"
-            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"<b>➲ ᴍᴏᴅᴜʟᴇ: {get_small_caps(HELPABLE[module].__MODULE__)}</b>\n"
+            f"────────────────────\n"
             f"{HELPABLE[module].__HELP__}\n"
-            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"────────────────────\n"
             f"<b>➘ ɴᴀᴠɪɢᴀᴛᴇ ᴜsɪɴɢ ʙᴜᴛᴛᴏɴs</b>"
         )
 
@@ -189,9 +197,9 @@ async def help_button(client, query):
             [
                 [
                     InlineKeyboardButton(
-                        text="⇜ ɢᴏ ʙᴀᴄᴋ", callback_data=f"help_back({prev_page_num})"
+                        text="⤴️ ʙᴀᴄᴋ", callback_data=f"help_back({prev_page_num})"
                     ),
-                    InlineKeyboardButton(text="ᴄʟᴏsᴇ ⌧", callback_data="close"),
+                    InlineKeyboardButton(text="✖️ ᴄʟᴏsᴇ", callback_data="close"),
                 ],
             ]
         )
