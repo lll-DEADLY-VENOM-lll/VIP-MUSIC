@@ -19,8 +19,9 @@ logging.getLogger('googleapiclient.discovery_cache').setLevel(logging.ERROR)
 def get_youtube_client():
     if not config.API_KEY:
         return None
-    keys = config.API_KEY.split(",") if "," in config.API_KEY else [config.API_KEY]
-    selected_key = random.choice(keys).strip()
+    # Split keys if comma separated
+    keys = config.API_KEY.split(",") if isinstance(config.API_KEY, str) and "," in config.API_KEY else [config.API_KEY]
+    selected_key = str(random.choice(keys)).strip()
     try:
         return build("youtube", "v3", developerKey=selected_key, static_discovery=False)
     except:
@@ -32,7 +33,7 @@ def parse_duration(duration):
     if not match: return 0, "00:00"
     h, m, s = [int(match.group(i) or 0) for i in range(1, 4)]
     total = h * 3600 + m * 60 + s
-    return total, (f"{h}:{m:02d}:{s:02d}" if h > 0 else f"{m}:{s:02d}")
+    return total, (f"{h}:{m:02d}:{seconds:02d}" if h > 0 else f"{m}:{s:02d}")
 
 class YouTubeAPI:
     def __init__(self):
@@ -46,11 +47,12 @@ class YouTubeAPI:
     async def url(self, message_1: Message):
         messages = [message_1, message_1.reply_to_message] if message_1.reply_to_message else [message_1]
         for m in messages:
-            if m and m.entities:
+            if not m: continue
+            if m.entities:
                 for e in m.entities:
                     if e.type == MessageEntityType.URL:
                         return (m.text or m.caption)[e.offset : e.offset + e.length]
-            if m and m.caption_entities:
+            if m.caption_entities:
                 for e in m.caption_entities:
                     if e.type == MessageEntityType.TEXT_LINK: return e.url
         return None
@@ -59,32 +61,46 @@ class YouTubeAPI:
         vid = videoid or self.extract_id(link)
         if not vid: return None
         
-        # Method 1: Google API (Fast)
+        # Method 1: Google API
         client = get_youtube_client()
         if client:
             try:
                 loop = asyncio.get_event_loop()
                 res = await loop.run_in_executor(None, lambda: client.videos().list(part="snippet,contentDetails", id=vid).execute())
-                if res["items"]:
+                if res.get("items"):
                     item = res["items"][0]
+                    title = item["snippet"]["title"]
+                    thumb = item["snippet"]["thumbnails"]["high"]["url"]
                     dur_sec, dur_min = parse_duration(item["contentDetails"]["duration"])
-                    return item["snippet"]["title"], dur_min, dur_sec, item["snippet"]["thumbnails"]["high"]["url"], vid
-            except: pass # Agar API fail ho jaye toh niche wale method par jayega
+                    return title, dur_min, dur_sec, thumb, vid
+            except: pass
 
-        # Method 2: Fallback to yt-dlp (Slow but Reliable)
+        # Method 2: Fallback to yt-dlp
         try:
-            ydl_opts = {"quiet": True, "no_warnings": True}
-            with YoutubeDL(ydl_opts) as ydl:
+            with YoutubeDL({"quiet": True, "no_warnings": True}) as ydl:
                 info = await asyncio.get_event_loop().run_in_executor(None, lambda: ydl.extract_info(f"https://www.youtube.com/watch?v={vid}", download=False))
-                return info['title'], f"{info['duration']//60}:{info['duration']%60:02d}", info['duration'], info['thumbnail'], vid
+                return info['title'], f"{info['duration']//60}:{info['duration']%60:02d}", info['duration'], info.get('thumbnail'), vid
         except: return None
 
     async def track(self, link, videoid=None):
         res = await self.details(link, videoid)
         if not res:
-            # Empty dict return karein taaki 'NoneType' error na aaye
-            return {"title": "Unknown", "duration_min": "00:00"}, None
-        data = {"title": res[0], "link": self.base + res[4], "vidid": res[4], "duration_min": res[1], "thumb": res[3]}
+            # All keys must be present to avoid KeyError in play.py
+            return {
+                "title": "Unknown Track",
+                "link": link,
+                "vidid": "None",
+                "duration_min": "00:00",
+                "thumb": None
+            }, None
+        
+        data = {
+            "title": res[0],
+            "link": self.base + res[4],
+            "vidid": res[4],
+            "duration_min": res[1],
+            "thumb": res[3]
+        }
         return data, res[4]
 
     async def playlist(self, link, limit, user_id, videoid=None):
@@ -112,7 +128,8 @@ class YouTubeAPI:
         loop = asyncio.get_running_loop()
         def dl(opts):
             with YoutubeDL(opts) as ydl:
-                return ydl.prepare_filename(ydl.extract_info(link, download=True))
+                info = ydl.extract_info(link, download=True)
+                return ydl.prepare_filename(info)
 
         opts = {"quiet": True, "no_warnings": True, "geo_bypass": True}
         if songvideo:
@@ -133,16 +150,13 @@ class YouTubeAPI:
             opts.update({"format": "bestaudio/best", "outtmpl": "downloads/%(id)s.%(ext)s"})
             return await loop.run_in_executor(None, lambda: dl(opts)), True
 
-    # Dummy methods for compatibility
+    # Extra helper methods for compatibility
     async def title(self, link, videoid=None):
-        res = await self.details(link, videoid)
-        return res[0] if res else "Unknown"
+        res = await self.details(link, videoid); return res[0] if res else "Unknown"
     async def duration(self, link, videoid=None):
-        res = await self.details(link, videoid)
-        return res[1] if res else "00:00"
+        res = await self.details(link, videoid); return res[1] if res else "00:00"
     async def thumbnail(self, link, videoid=None):
-        res = await self.details(link, videoid)
-        return res[3] if res else None
+        res = await self.details(link, videoid); return res[3] if res else None
     async def formats(self, link, videoid=None):
         if videoid: link = self.base + link
         try:
@@ -150,3 +164,5 @@ class YouTubeAPI:
                 r = await asyncio.get_event_loop().run_in_executor(None, lambda: ydl.extract_info(link, download=False))
                 return [{"format": f.get("format"), "format_id": f.get("format_id"), "ext": f.get("ext")} for f in r["formats"] if "dash" not in str(f.get("format")).lower()], link
         except: return [], link
+    async def exists(self, link, videoid=None):
+        return True if videoid or re.search(self.regex, link) else False
