@@ -17,23 +17,19 @@ from VIPMUSIC import LOGGER
 logger = LOGGER(__name__)
 
 # --- STRONG API ROTATION SYSTEM ---
-# Config se keys load karke ek list mein rakhein
 WORKING_KEYS = [k.strip() for k in config.API_KEY.split(",") if k.strip()]
 
 def get_youtube_client():
-    """Current working key ke saath client return karega"""
     if not WORKING_KEYS:
         return None
     return build("youtube", "v3", developerKey=WORKING_KEYS[0], static_discovery=False)
 
 def mark_key_as_dead():
-    """Kharab ya exhausted key ko list se nikal deta hai"""
     if WORKING_KEYS:
         dead_key = WORKING_KEYS.pop(0)
         logger.warning(f"API Key Exhausted/Invalid: {dead_key[:10]}... | Remaining: {len(WORKING_KEYS)}")
     return len(WORKING_KEYS) > 0
 
-# --- COOKIE LOGIC ---
 def get_cookie_file():
     try:
         folder_path = f"{os.getcwd()}/cookies"
@@ -48,6 +44,27 @@ class YouTubeAPI:
         self.regex = r"(?:youtube\.com|youtu\.be)"
         self.listbase = "https://youtube.com/playlist?list="
 
+    # --- MISSING URL METHOD ADDED ---
+    async def url(self, message: Message) -> Union[str, None]:
+        messages = [message]
+        if message.reply_to_message:
+            messages.append(message.reply_to_message)
+        for msg in messages:
+            if msg.entities:
+                for entity in msg.entities:
+                    if entity.type == MessageEntityType.URL:
+                        return (msg.text or msg.caption)[entity.offset : entity.offset + entity.length]
+            if msg.caption_entities:
+                for entity in msg.caption_entities:
+                    if entity.type == MessageEntityType.TEXT_LINK:
+                        return entity.url
+        return None
+
+    # --- MISSING EXISTS METHOD ADDED ---
+    async def exists(self, link: str, videoid: Union[bool, str] = None):
+        if videoid: link = self.base + link
+        return bool(re.search(self.regex, link))
+
     def parse_duration(self, duration):
         if not duration: return "00:00", 0
         match = re.search(r'PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?', duration)
@@ -56,7 +73,6 @@ class YouTubeAPI:
         duration_str = f"{h:02d}:{m:02d}:{s:02d}" if h > 0 else f"{m:02d}:{s:02d}"
         return duration_str, total_seconds
 
-    # --- INSTANT DETAILS FETCHING ---
     async def details(self, link: str, videoid: Union[bool, str] = None):
         if videoid: 
             vidid = link
@@ -66,7 +82,7 @@ class YouTubeAPI:
 
         while True:
             youtube = get_youtube_client()
-            if not youtube: # Agar API khatam, to seedha yt-dlp (Fallback)
+            if not youtube:
                 return await self.fallback_details(link, vidid)
 
             try:
@@ -91,15 +107,13 @@ class YouTubeAPI:
                 return title, d_min, d_sec, thumb, vidid
 
             except HttpError as e:
-                if e.resp.status in [403, 400]: # Quota/Invalid Key
+                if e.resp.status in [403, 400]:
                     if mark_key_as_dead(): continue
                 break
             except Exception:
                 break
-        
         return await self.fallback_details(link, vidid)
 
-    # --- FALLBACK SEARCH (JAB API FAIL HO) ---
     async def fallback_details(self, query, vidid=None):
         try:
             ydl_opts = {"quiet": True, "cookiefile": get_cookie_file(), "skip_download": True}
@@ -115,9 +129,7 @@ class YouTubeAPI:
         except Exception:
             return None
 
-    # --- INSTANT STREAM LINK (NO DOWNLOAD) ---
     async def get_stream_link(self, link: str):
-        """Ye link direct VC player ko diya jayega bina download kiye"""
         loop = asyncio.get_running_loop()
         ydl_opts = {
             "format": "bestaudio/best",
@@ -142,15 +154,14 @@ class YouTubeAPI:
         title, d_min, d_sec, thumb, vidid = res
         return {"title": title, "link": self.base + vidid, "vidid": vidid, "duration_min": d_min, "thumb": thumb}, vidid
 
-    # --- FASTEST PLAY LOGIC FOR VC ---
-    async def play_instant(self, query):
-        """Esko apne play command mein use karein"""
-        details, vidid = await self.track(query)
-        if not vidid: return None
-        
-        stream_url = await self.get_stream_link(details['link'])
-        details['stream_link'] = stream_url
-        return details
+    # --- YE METHOD DOWNLOAD NAHI KAREGA, FAST STREAM KAREGA ---
+    async def download(self, link: str, mystic, video=None, videoid=None, songaudio=None, songvideo=None, format_id=None, title=None) -> str:
+        # Purane structure ko compatibility dene ke liye link return kar rahe hain
+        if videoid: link = self.base + link
+        stream_link = await self.get_stream_link(link)
+        if stream_link:
+            return stream_link, True
+        return None, False
 
     async def playlist(self, link, limit, user_id, videoid: Union[bool, str] = None):
         if videoid: link = self.listbase + link
