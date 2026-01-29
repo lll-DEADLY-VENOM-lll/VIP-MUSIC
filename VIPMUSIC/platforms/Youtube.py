@@ -10,7 +10,6 @@ import yt_dlp
 from pyrogram.enums import MessageEntityType
 from pyrogram.types import Message
 from googleapiclient.discovery import build 
-# HttpError ko GError se badal diya gaya hai
 from googleapiclient.errors import HttpError as GError
 
 import config
@@ -19,12 +18,7 @@ from VIPMUSIC.utils.formatters import time_to_seconds
 
 logger = LOGGER(__name__)
 
-# String obfuscation taaki 'http' kahin na dikhe
-S = "ht" + "tp"
-SS = S + "s"
-PT = SS + "://"
-
-# --- API SEQUENTIAL ROTATION LOGIC ---
+# --- API KEY ROTATION ---
 API_KEYS = [k.strip() for k in config.API_KEY.split(",")]
 current_key_index = 0
 
@@ -47,21 +41,24 @@ def switch_key():
 def get_cookie_file():
     try:
         folder_path = f"{os.getcwd()}/cookies"
+        if not os.path.exists(folder_path):
+            return None
         txt_files = glob.glob(os.path.join(folder_path, '*.txt'))
         if not txt_files:
             return None
-        cookie_file = random.choice(txt_files)
-        return cookie_file
+        return random.choice(txt_files)
     except Exception:
         return None
 
 class YouTubeAPI:
     def __init__(self):
-        # Yahan urls se http/https hata kar variables use kiye hain
-        self.base = f"{PT}www.youtube.com/watch?v="
+        # Direct Links (HTTP/HTTPS)
+        self.base = "https://www.youtube.com/watch?v="
         self.regex = r"(?:youtube\.com|youtu\.be)"
-        self.listbase = f"{PT}youtube.com/playlist?list="
-        self.search_api_url = f"{PT}www.googleapis.com/youtube/v3/search"
+        self.listbase = "https://youtube.com/playlist?list="
+        self.search_api_url = "https://www.googleapis.com/youtube/v3/search"
+        # Browser ki tarah behave karne ke liye User-Agent
+        self.user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
 
     def parse_duration(self, duration):
         match = re.search(r'PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?', duration)
@@ -116,7 +113,7 @@ class YouTubeAPI:
                 d_min, d_sec = self.parse_duration(item["contentDetails"]["duration"])
                 return title, d_min, d_sec, thumb, vidid
 
-            except GError as e: # HttpError ki jagah GError (alias)
+            except GError as e:
                 if e.resp.status == 403 and switch_key(): continue
                 return None
 
@@ -127,63 +124,74 @@ class YouTubeAPI:
         return {"title": title, "link": self.base + vidid, "vidid": vidid, "duration_min": d_min, "thumb": thumb}, vidid
 
     async def video(self, link: str, videoid: Union[bool, str] = None):
+        """Direct link nikalne ke liye jo audio aur video dono play kare"""
         if videoid: link = self.base + link
         cookie = get_cookie_file()
-        opts = ["yt-dlp", "-g", "-f", "best[height<=?720]", "--geo-bypass", link]
+        
+        # 'best' use karne se 1 single link milta hai jisme audio + video dono hote hain
+        opts = [
+            "yt-dlp", 
+            "-g", 
+            "-f", "best[ext=mp4]/best", 
+            "--geo-bypass", 
+            "--user-agent", self.user_agent,
+            link
+        ]
         if cookie: opts.extend(["--cookies", cookie])
         
         proc = await asyncio.create_subprocess_exec(*opts, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
         stdout, stderr = await proc.communicate()
-        return (1, stdout.decode().split("\n")[0]) if stdout else (0, stderr.decode())
-
-    async def playlist(self, link, limit, user_id, videoid: Union[bool, str] = None):
-        if videoid: link = self.listbase + link
-        cookie = get_cookie_file()
-        cookie_arg = f"--cookies {cookie}" if cookie else ""
-        cmd = f"yt-dlp {cookie_arg} -i --get-id --flat-playlist --playlist-end {limit} --skip-download {link}"
-        playlist = await asyncio.create_subprocess_shell(cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-        stdout, _ = await playlist.communicate()
-        return [k.strip() for k in stdout.decode().split("\n") if k.strip()]
-
-    async def slider(self, link: str, query_type: int, videoid: Union[bool, str] = None):
-        while True:
-            youtube = get_youtube_client()
-            if not youtube: return None
-            try:
-                search = await asyncio.to_thread(youtube.search().list(q=link, part="snippet", maxResults=10, type="video").execute)
-                if not search.get("items"): return None
-                
-                item = search["items"][query_type]
-                vidid = item["id"]["videoId"]
-                title = item["snippet"]["title"]
-                thumb = item["snippet"]["thumbnails"]["high"]["url"]
-                
-                v_res = await asyncio.to_thread(youtube.videos().list(part="contentDetails", id=vidid).execute)
-                d_min, _ = self.parse_duration(v_res["items"][0]["contentDetails"]["duration"])
-                return title, d_min, thumb, vidid
-            except GError as e:
-                if e.resp.status == 403 and switch_key(): continue
-                return None
+        
+        if stdout:
+            return (1, stdout.decode().split("\n")[0])
+        else:
+            logger.error(f"Streaming Error: {stderr.decode()}")
+            return (0, stderr.decode())
 
     async def download(self, link: str, mystic, video=None, videoid=None, songaudio=None, songvideo=None, format_id=None, title=None) -> str:
+        """Video ya Audio file download karne ke liye"""
         if videoid: link = self.base + link
         loop = asyncio.get_running_loop()
         cookie = get_cookie_file()
         
-        common_opts = {"quiet": True, "no_warnings": True, "geo_bypass": True, "nocheckcertificate": True}
+        common_opts = {
+            "quiet": True, 
+            "no_warnings": True, 
+            "geo_bypass": True, 
+            "nocheckcertificate": True,
+            "user_agent": self.user_agent,
+            "retries": 10,
+        }
         if cookie: common_opts["cookiefile"] = cookie
 
         def ytdl_run(opts):
-            with yt_dlp.YoutubeDL(opts) as ydl:
-                info = ydl.extract_info(link, download=True)
-                return ydl.prepare_filename(info)
+            try:
+                with yt_dlp.YoutubeDL(opts) as ydl:
+                    info = ydl.extract_info(link, download=True)
+                    return ydl.prepare_filename(info)
+            except Exception as e:
+                logger.error(f"Download execution failed: {e}")
+                return None
 
         if songvideo:
-            opts = {**common_opts, "format": f"{format_id}+140/bestvideo+bestaudio", "outtmpl": f"downloads/{title}.%(ext)s", "merge_output_format": "mp4"}
+            # Video + Audio download
+            opts = {**common_opts, "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best", "outtmpl": f"downloads/{title}.%(ext)s", "merge_output_format": "mp4"}
         elif songaudio:
+            # Sirf MP3 download
             opts = {**common_opts, "format": "bestaudio/best", "outtmpl": f"downloads/{title}.%(ext)s", "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "192"}]}
         else:
             opts = {**common_opts, "format": "bestaudio/best", "outtmpl": "downloads/%(id)s.%(ext)s"}
 
         downloaded_file = await loop.run_in_executor(None, lambda: ytdl_run(opts))
-        return downloaded_file, True
+        if downloaded_file:
+            return downloaded_file, True
+        return None, False
+
+    async def playlist(self, link, limit, user_id, videoid: Union[bool, str] = None):
+        if videoid: link = self.listbase + link
+        cookie = get_cookie_file()
+        cookie_arg = f"--cookies {cookie}" if cookie else ""
+        cmd = f"yt-dlp {cookie_arg} --user-agent '{self.user_agent}' -i --get-id --flat-playlist --playlist-end {limit} --skip-download {link}"
+        playlist = await asyncio.create_subprocess_shell(cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        stdout, _ = await playlist.communicate()
+        return [k.strip() for k in stdout.decode().split("\n") if k.strip()]
