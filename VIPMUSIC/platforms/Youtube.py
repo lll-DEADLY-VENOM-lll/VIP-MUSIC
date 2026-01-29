@@ -4,22 +4,17 @@ import json
 import os
 import random
 import re
-from concurrent.futures import ThreadPoolExecutor
 from typing import Union
-import string
-import requests
+
 import yt_dlp
 from pyrogram.enums import MessageEntityType
 from pyrogram.types import Message
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 from googleapiclient.discovery import build 
 from googleapiclient.errors import HttpError
 
-from VIPMUSIC import LOGGER
-from VIPMUSIC.utils.database import is_on_off
-from VIPMUSIC.utils.formatters import time_to_seconds
-from config import API_KEY, YTPROXY_URL as YTPROXY
+import config
+from VIP-MUSIC import LOGGER
+from VIP-MUSIC.utils.formatters import time_to_seconds
 
 logger = LOGGER(__name__)
 
