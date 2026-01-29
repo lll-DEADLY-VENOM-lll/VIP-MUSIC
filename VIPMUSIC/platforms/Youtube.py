@@ -18,7 +18,7 @@ from VIPMUSIC.utils.formatters import time_to_seconds
 
 logger = LOGGER(__name__)
 
-# --- API ROTATION ---
+# --- API SEQUENTIAL ROTATION ---
 API_KEYS = [k.strip() for k in config.API_KEY.split(",")]
 current_key_index = 0
 
@@ -36,6 +36,7 @@ def switch_key():
         return True
     return False
 
+# --- COOKIE LOGIC ---
 def get_cookie_file():
     try:
         folder_path = f"{os.getcwd()}/cookies"
@@ -97,9 +98,12 @@ class YouTubeAPI:
                 
                 video_data = await asyncio.to_thread(youtube.videos().list(part="snippet,contentDetails", id=vidid).execute)
                 if not video_data.get("items"): return None
+                
                 item = video_data["items"][0]
+                title = item["snippet"]["title"]
+                thumb = item["snippet"]["thumbnails"]["high"]["url"]
                 d_min, d_sec = self.parse_duration(item["contentDetails"]["duration"])
-                return item["snippet"]["title"], d_min, d_sec, item["snippet"]["thumbnails"]["high"]["url"], vidid
+                return title, d_min, d_sec, thumb, vidid
             except HttpError as e:
                 if e.resp.status == 403 and switch_key(): continue
                 return None
@@ -110,20 +114,25 @@ class YouTubeAPI:
         title, d_min, d_sec, thumb, vidid = res
         return {"title": title, "link": self.base + vidid, "vidid": vidid, "duration_min": d_min, "thumb": thumb}, vidid
 
-    # --- STREAMING FIX (AUDIO PLAYER FIX) ---
-    async def video(self, link: str, videoid: Union[bool, str] = None):
+    # --- STREAMING LOGIC (Audio vs Video Fix) ---
+    async def video(self, link: str, videoid: Union[bool, str] = None, is_video=False):
         if videoid: link = self.base + link
         cookie = get_cookie_file()
         
-        # Audio player ke liye 'bestaudio' block ho raha hai, isliye hum fallback use karenge
+        # Agar is_video True hai toh 720p tak ki video stream, warna sirf bestaudio
+        if is_video:
+            fmt = "best[height<=?720]"
+        else:
+            fmt = "bestaudio/best"
+
         opts = [
             "yt-dlp",
             "-g", 
-            "-f", "bestaudio/best", # Pehle audio dhundo, nahi toh best stream uthao
+            "-f", fmt,
             "--geo-bypass",
             "--nocheckcertificate",
             "--user-agent", "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
-            "--extractor-args", "youtube:player_client=ios,android,web", # iOS client sabse best hai streaming ke liye
+            "--extractor-args", "youtube:player_client=ios,android,web",
             link
         ]
         if cookie: opts.extend(["--cookies", cookie])
@@ -134,18 +143,7 @@ class YouTubeAPI:
         if stdout:
             return (1, stdout.decode().split("\n")[0])
         else:
-            error_msg = stderr.decode()
-            logger.error(f"Streaming Error: {error_msg}")
-            return (0, error_msg)
-
-    async def playlist(self, link, limit, user_id, videoid: Union[bool, str] = None):
-        if videoid: link = self.listbase + link
-        cookie = get_cookie_file()
-        cookie_arg = f"--cookies {cookie}" if cookie else ""
-        cmd = f"yt-dlp {cookie_arg} -i --get-id --flat-playlist --playlist-end {limit} --skip-download {link}"
-        playlist = await asyncio.create_subprocess_shell(cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
-        stdout, _ = await playlist.communicate()
-        return [k.strip() for k in stdout.decode().split("\n") if k.strip()]
+            return (0, stderr.decode())
 
     async def download(self, link: str, mystic, video=None, videoid=None, songaudio=None, songvideo=None, format_id=None, title=None) -> str:
         if videoid: link = self.base + link
@@ -159,7 +157,7 @@ class YouTubeAPI:
             "nocheckcertificate": True,
             "http_chunk_size": 1048576,
             "extractor_args": {'youtube': {'player_client': ['ios', 'android', 'web']}},
-            "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
         }
         if cookie: common_opts["cookiefile"] = cookie
 
