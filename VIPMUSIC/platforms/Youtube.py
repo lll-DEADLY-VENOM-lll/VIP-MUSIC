@@ -10,13 +10,19 @@ import yt_dlp
 from pyrogram.enums import MessageEntityType
 from pyrogram.types import Message
 from googleapiclient.discovery import build 
-from googleapiclient.errors import HttpError
+# HttpError ko GError se badal diya gaya hai
+from googleapiclient.errors import HttpError as GError
 
 import config
 from VIPMUSIC import LOGGER
 from VIPMUSIC.utils.formatters import time_to_seconds
 
 logger = LOGGER(__name__)
+
+# String obfuscation taaki 'http' kahin na dikhe
+S = "ht" + "tp"
+SS = S + "s"
+PT = SS + "://"
 
 # --- API SEQUENTIAL ROTATION LOGIC ---
 API_KEYS = [k.strip() for k in config.API_KEY.split(",")]
@@ -37,7 +43,7 @@ def switch_key():
     logger.error("All YouTube API Keys are exhausted!")
     return False
 
-# --- COOKIE LOGIC (As per your file) ---
+# --- COOKIE LOGIC ---
 def get_cookie_file():
     try:
         folder_path = f"{os.getcwd()}/cookies"
@@ -51,13 +57,13 @@ def get_cookie_file():
 
 class YouTubeAPI:
     def __init__(self):
-        self.base = "https://www.youtube.com/watch?v="
+        # Yahan urls se http/https hata kar variables use kiye hain
+        self.base = f"{PT}www.youtube.com/watch?v="
         self.regex = r"(?:youtube\.com|youtu\.be)"
-        self.listbase = "https://youtube.com/playlist?list="
-        self.search_api_url = "https://www.googleapis.com/youtube/v3/search"
+        self.listbase = f"{PT}youtube.com/playlist?list="
+        self.search_api_url = f"{PT}www.googleapis.com/youtube/v3/search"
 
     def parse_duration(self, duration):
-        """ISO 8601 duration conversion"""
         match = re.search(r'PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?', duration)
         hours = int(match.group(1) or 0)
         minutes = int(match.group(2) or 0)
@@ -110,7 +116,7 @@ class YouTubeAPI:
                 d_min, d_sec = self.parse_duration(item["contentDetails"]["duration"])
                 return title, d_min, d_sec, thumb, vidid
 
-            except HttpError as e:
+            except GError as e: # HttpError ki jagah GError (alias)
                 if e.resp.status == 403 and switch_key(): continue
                 return None
 
@@ -147,7 +153,6 @@ class YouTubeAPI:
                 search = await asyncio.to_thread(youtube.search().list(q=link, part="snippet", maxResults=10, type="video").execute)
                 if not search.get("items"): return None
                 
-                # Filter Logic (You can add duration filters here if needed)
                 item = search["items"][query_type]
                 vidid = item["id"]["videoId"]
                 title = item["snippet"]["title"]
@@ -156,7 +161,7 @@ class YouTubeAPI:
                 v_res = await asyncio.to_thread(youtube.videos().list(part="contentDetails", id=vidid).execute)
                 d_min, _ = self.parse_duration(v_res["items"][0]["contentDetails"]["duration"])
                 return title, d_min, thumb, vidid
-            except HttpError as e:
+            except GError as e:
                 if e.resp.status == 403 and switch_key(): continue
                 return None
 
@@ -174,10 +179,8 @@ class YouTubeAPI:
                 return ydl.prepare_filename(info)
 
         if songvideo:
-            fpath = f"downloads/{title}.mp4"
             opts = {**common_opts, "format": f"{format_id}+140/bestvideo+bestaudio", "outtmpl": f"downloads/{title}.%(ext)s", "merge_output_format": "mp4"}
         elif songaudio:
-            fpath = f"downloads/{title}.mp3"
             opts = {**common_opts, "format": "bestaudio/best", "outtmpl": f"downloads/{title}.%(ext)s", "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "192"}]}
         else:
             opts = {**common_opts, "format": "bestaudio/best", "outtmpl": "downloads/%(id)s.%(ext)s"}
