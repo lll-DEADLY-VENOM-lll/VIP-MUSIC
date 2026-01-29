@@ -36,7 +36,6 @@ def switch_key():
     logger.error("Saare YouTube API keys khatam ho gaye!")
     return False
 
-# Cookies logic
 def get_cookie_file():
     try:
         folder = f"{os.getcwd()}/cookies"
@@ -164,6 +163,9 @@ class YouTubeAPI:
                 return None
 
     async def download(self, link: str, mystic, video=None, videoid=None, songaudio=None, songvideo=None, format_id=None, title=None) -> tuple:
+        """
+        Sirf audio (MP3) download karega – video mode ignore kiya gaya hai
+        """
         if videoid: link = self.base + link
         loop = asyncio.get_running_loop()
         cookie = get_cookie_file()
@@ -178,13 +180,13 @@ class YouTubeAPI:
             "fragment_retries": 10,
         }
 
-        # Impersonate optional – agar curl_cffi installed hai to use karo
+        # Impersonate try karo agar curl_cffi installed hai
         try:
             import curl_cffi
-            common_opts["impersonate"] = "chrome"  # auto latest version lega
-            logger.info("curl_cffi detected → impersonate 'chrome' enabled")
+            common_opts["impersonate"] = "chrome"  # auto recent version
+            logger.info("curl_cffi detected → impersonate 'chrome' ON")
         except ImportError:
-            logger.warning("curl_cffi not found → impersonate skipped (install 'yt-dlp[default,curl-cffi]' to enable)")
+            logger.warning("curl_cffi nahi mila → impersonate OFF (better quality ke liye install kar lo: pip install yt-dlp[default,curl-cffi])")
 
         if cookie:
             common_opts["cookiefile"] = cookie
@@ -197,57 +199,34 @@ class YouTubeAPI:
         downloaded_file = None
         success = False
 
-        # Try 1: Normal attempt with safe format (prefer combined to avoid 403)
         try:
-            if songvideo:
-                opts = {
-                    **common_opts,
-                    "format": "best[ext=mp4][height<=720]/bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best",
-                    "outtmpl": f"downloads/{title}.%(ext)s",
-                    "merge_output_format": "mp4",
-                }
-            elif songaudio:
-                opts = {
-                    **common_opts,
-                    "format": "bestaudio[ext=m4a]/bestaudio/best",
-                    "outtmpl": f"downloads/{title}.%(ext)s",
-                    "postprocessors": [{
-                        "key": "FFmpegExtractAudio",
-                        "preferredcodec": "mp3",
-                        "preferredquality": "192",
-                    }]
-                }
-            else:
-                opts = {
-                    **common_opts,
-                    "format": "best",
-                    "outtmpl": "downloads/%(id)s.%(ext)s",
-                }
+            # Force audio only – MP3 conversion
+            opts = {
+                **common_opts,
+                "format": "bestaudio[ext=m4a]/bestaudio/best",  # Best native audio (m4a/opus usually)
+                "outtmpl": f"downloads/{title}.%(ext)s",
+                "postprocessors": [{
+                    "key": "FFmpegExtractAudio",
+                    "preferredcodec": "mp3",
+                    "preferredquality": "192",  # 192kbps – acha balance (0 for best ~320kbps)
+                }],
+                "keepvideo": False,  # Temp files delete kar de
+            }
 
             downloaded_file = await loop.run_in_executor(None, lambda: ytdl_run(opts))
             success = True
-            logger.info(f"Download successful: {downloaded_file}")
+            logger.info(f"MP3 Download successful: {downloaded_file}")
 
         except Exception as e:
-            logger.error(f"Primary download failed: {str(e)}")
-
-        # Try 2: Super safe fallback (format 18 = 360p mp4, almost never 403)
-        if not success:
+            logger.error(f"Main audio download fail: {str(e)}")
+            # Fallback: Direct m4a format (140 = common ~128kbps audio, bahut stable)
             try:
-                opts = {
-                    **common_opts,
-                    "format": "18",  # 360p mp4 – very stable in 2026
-                    "outtmpl": f"downloads/{title or '%(id)s'}.%(ext)s",
-                }
-                # Remove merge/postprocessor as not needed
-                opts.pop("merge_output_format", None)
-                if "postprocessors" in opts:
-                    del opts["postprocessors"]
-
+                opts["format"] = "140"
+                # Postprocessor rakho taaki MP3 ban jaye
                 downloaded_file = await loop.run_in_executor(None, lambda: ytdl_run(opts))
                 success = True
-                logger.info(f"Fallback to format 18 successful: {downloaded_file}")
+                logger.info(f"Fallback audio (140 → MP3) success: {downloaded_file}")
             except Exception as fb_e:
-                logger.error(f"Fallback failed too: {str(fb_e)}")
+                logger.error(f"Fallback bhi fail: {str(fb_e)}")
 
         return downloaded_file, success
