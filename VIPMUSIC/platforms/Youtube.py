@@ -19,7 +19,7 @@ from googleapiclient.errors import HttpError
 from VIPMUSIC import LOGGER
 from VIPMUSIC.utils.database import is_on_off
 from VIPMUSIC.utils.formatters import time_to_seconds
-from config import YT_API_KEY, YTPROXY_URL as YTPROXY
+from config import API_KEY, YTPROXY_URL as YTPROXY
 
 logger = LOGGER(__name__)
 
