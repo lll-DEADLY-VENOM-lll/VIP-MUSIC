@@ -17,21 +17,20 @@ from VIPMUSIC.utils.formatters import time_to_seconds
 
 logger = LOGGER(__name__)
 
-# --- API KEY MANAGEMENT ---
+# --- API KEY MANAGEMENT LOGIC ---
 API_KEYS: List[str] = [k.strip() for k in config.API_KEY.split(",")]
 exhausted_keys: Set[str] = set()
 current_key_index = 0
 key_lock = asyncio.Lock()
 
 async def check_api_keys_on_startup():
-    """Bot start hote hi saari keys ko check karega"""
+    """Bot start hote hi terminal par keys check karega"""
     global current_key_index
     print("\n--- [YOUTUBE API STARTUP CHECK] ---")
     
     any_working = False
     for i, key in enumerate(API_KEYS):
         try:
-            # Dummy search request to check key validity
             service = build("youtube", "v3", developerKey=key, static_discovery=False)
             await asyncio.to_thread(
                 service.search().list(q="music", part="id", maxResults=1).execute
@@ -59,7 +58,6 @@ def get_youtube_client():
     if len(exhausted_keys) >= len(API_KEYS):
         return None
 
-    # Check for next available key
     start_index = current_key_index
     while API_KEYS[current_key_index] in exhausted_keys:
         current_key_index = (current_key_index + 1) % len(API_KEYS)
@@ -69,27 +67,20 @@ def get_youtube_client():
     return build("youtube", "v3", developerKey=API_KEYS[current_key_index], static_discovery=False)
 
 async def switch_key():
-    """Jab runtime par key khatam ho jaye"""
     global current_key_index
     async with key_lock:
         current_key = API_KEYS[current_key_index]
         if current_key not in exhausted_keys:
-            # TERMINAL PE DIKHAYEGA
-            print(f"⚠️  ALERT: API Key #{current_key_index + 1} has just FINISHED (Quota Over)!")
-            logger.warning(f"YouTube Quota Finished for Key #{current_key_index + 1}")
+            print(f"⚠️ ALERT: API Key #{current_key_index + 1} has just FINISHED (Quota Over)!")
             exhausted_keys.add(current_key)
         
-        # Agli key dhundo
         for i in range(len(API_KEYS)):
             current_key_index = (current_key_index + 1) % len(API_KEYS)
             if API_KEYS[current_key_index] not in exhausted_keys:
                 print(f"🔄 Switched to Key #{current_key_index + 1} successfully.")
                 return True
-        
-        print("‼️ CRITICAL: All API keys are now exhausted!")
         return False
 
-# --- COOKIE LOGIC ---
 def get_cookie_file():
     try:
         folder_path = f"{os.getcwd()}/cookies"
@@ -115,6 +106,26 @@ class YouTubeAPI:
         duration_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}" if hours > 0 else f"{minutes:02d}:{seconds:02d}"
         return duration_str, total_seconds
 
+    # --- RESTORED URL METHOD (Fixed AttributeError) ---
+    async def url(self, message: Message) -> Union[str, None]:
+        messages = [message]
+        if message.reply_to_message:
+            messages.append(message.reply_to_message)
+        for msg in messages:
+            if msg.entities:
+                for entity in msg.entities:
+                    if entity.type == MessageEntityType.URL:
+                        return (msg.text or msg.caption)[entity.offset : entity.offset + entity.length]
+            if msg.caption_entities:
+                for entity in msg.caption_entities:
+                    if entity.type == MessageEntityType.TEXT_LINK:
+                        return entity.url
+        return None
+
+    async def exists(self, link: str, videoid: Union[bool, str] = None):
+        if videoid: link = self.base + link
+        return bool(re.search(self.regex, link))
+
     async def details(self, link: str, videoid: Union[bool, str] = None):
         if videoid: 
             vidid = link
@@ -125,7 +136,6 @@ class YouTubeAPI:
         for _ in range(len(API_KEYS)):
             youtube = get_youtube_client()
             if not youtube: break
-            
             try:
                 if not vidid:
                     search = await asyncio.to_thread(youtube.search().list(q=link, part="id", maxResults=1, type="video").execute)
@@ -140,10 +150,8 @@ class YouTubeAPI:
                 thumb = item["snippet"]["thumbnails"]["high"]["url"]
                 d_min, d_sec = self.parse_duration(item["contentDetails"]["duration"])
                 return title, d_min, d_sec, thumb, vidid
-
             except HttpError as e:
-                if e.resp.status in [403, 429]:
-                    if await switch_key(): continue
+                if e.resp.status in [403, 429] and await switch_key(): continue
                 break
         return None
 
@@ -153,11 +161,47 @@ class YouTubeAPI:
         title, d_min, d_sec, thumb, vidid = res
         return {"title": title, "link": self.base + vidid, "vidid": vidid, "duration_min": d_min, "thumb": thumb}, vidid
 
+    async def video(self, link: str, videoid: Union[bool, str] = None):
+        if videoid: link = self.base + link
+        cookie = get_cookie_file()
+        opts = ["yt-dlp", "-g", "-f", "best[height<=?720]", "--geo-bypass", link]
+        if cookie: opts.extend(["--cookies", cookie])
+        proc = await asyncio.create_subprocess_exec(*opts, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        stdout, stderr = await proc.communicate()
+        return (1, stdout.decode().split("\n")[0]) if stdout else (0, stderr.decode())
+
+    async def playlist(self, link, limit, user_id, videoid: Union[bool, str] = None):
+        if videoid: link = self.listbase + link
+        cookie = get_cookie_file()
+        cookie_arg = f"--cookies {cookie}" if cookie else ""
+        cmd = f"yt-dlp {cookie_arg} -i --get-id --flat-playlist --playlist-end {limit} --skip-download {link}"
+        playlist = await asyncio.create_subprocess_shell(cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        stdout, _ = await playlist.communicate()
+        return [k.strip() for k in stdout.decode().split("\n") if k.strip()]
+
+    async def slider(self, link: str, query_type: int, videoid: Union[bool, str] = None):
+        for _ in range(len(API_KEYS)):
+            youtube = get_youtube_client()
+            if not youtube: break
+            try:
+                search = await asyncio.to_thread(youtube.search().list(q=link, part="snippet", maxResults=10, type="video").execute)
+                if not search.get("items"): return None
+                item = search["items"][query_type]
+                vidid = item["id"]["videoId"]
+                title = item["snippet"]["title"]
+                thumb = item["snippet"]["thumbnails"]["high"]["url"]
+                v_res = await asyncio.to_thread(youtube.videos().list(part="contentDetails", id=vidid).execute)
+                d_min, _ = self.parse_duration(v_res["items"][0]["contentDetails"]["duration"])
+                return title, d_min, thumb, vidid
+            except HttpError as e:
+                if e.resp.status in [403, 429] and await switch_key(): continue
+                break
+        return None
+
     async def download(self, link: str, mystic, video=None, videoid=None, songaudio=None, songvideo=None, format_id=None, title=None) -> str:
         if videoid: link = self.base + link
         loop = asyncio.get_running_loop()
         cookie = get_cookie_file()
-        
         common_opts = {"quiet": True, "no_warnings": True, "geo_bypass": True, "nocheckcertificate": True}
         if cookie: common_opts["cookiefile"] = cookie
 
@@ -177,10 +221,5 @@ class YouTubeAPI:
             downloaded_file = await loop.run_in_executor(None, lambda: ytdl_run(opts))
             return downloaded_file
         except Exception as e:
-            # Agar cookies dead ho toh yahan error print hoga
             print(f"❌ DOWNLOAD ERROR: {str(e)}")
             return None
-
-# --- IMPORTANT: STARTUP PE YE CALL KARNA HOGA ---
-# Is function ko aap apne main.py ya bot.py mein call karein:
-# loop.run_until_complete(check_api_keys_on_startup())
