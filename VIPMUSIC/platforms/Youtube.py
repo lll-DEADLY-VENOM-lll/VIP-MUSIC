@@ -13,8 +13,8 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 import config
-from VIPMUSIC import LOGGER
-from VIPMUSIC.utils.formatters import time_to_seconds
+from AnonMusic import LOGGER
+from AnonMusic.utils.formatters import time_to_seconds
 
 logger = LOGGER(__name__)
 
@@ -100,10 +100,7 @@ class YouTubeAPI:
                 if not video_data.get("items"): return None
                 
                 item = video_data["items"][0]
-                title = item["snippet"]["title"]
-                thumb = item["snippet"]["thumbnails"]["high"]["url"]
-                d_min, d_sec = self.parse_duration(item["contentDetails"]["duration"])
-                return title, d_min, d_sec, thumb, vidid
+                return item["snippet"]["title"], *self.parse_duration(item["contentDetails"]["duration"]), item["snippet"]["thumbnails"]["high"]["url"], vidid
             except HttpError as e:
                 if e.resp.status == 403 and switch_key(): continue
                 return None
@@ -114,21 +111,16 @@ class YouTubeAPI:
         title, d_min, d_sec, thumb, vidid = res
         return {"title": title, "link": self.base + vidid, "vidid": vidid, "duration_min": d_min, "thumb": thumb}, vidid
 
-    # --- STREAMING LOGIC (Audio vs Video Fix) ---
-    async def video(self, link: str, videoid: Union[bool, str] = None, is_video=False):
+    # --- STRICT AUDIO STREAMING ONLY ---
+    async def video(self, link: str, videoid: Union[bool, str] = None):
         if videoid: link = self.base + link
         cookie = get_cookie_file()
         
-        # Agar is_video True hai toh 720p tak ki video stream, warna sirf bestaudio
-        if is_video:
-            fmt = "best[height<=?720]"
-        else:
-            fmt = "bestaudio/best"
-
+        # Sirf audio stream fetch karne ke liye settings
         opts = [
             "yt-dlp",
             "-g", 
-            "-f", fmt,
+            "-f", "bestaudio/best", # Force audio only
             "--geo-bypass",
             "--nocheckcertificate",
             "--user-agent", "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
@@ -143,6 +135,7 @@ class YouTubeAPI:
         if stdout:
             return (1, stdout.decode().split("\n")[0])
         else:
+            logger.error(f"Audio Stream Error: {stderr.decode()}")
             return (0, stderr.decode())
 
     async def download(self, link: str, mystic, video=None, videoid=None, songaudio=None, songvideo=None, format_id=None, title=None) -> str:
@@ -150,6 +143,7 @@ class YouTubeAPI:
         loop = asyncio.get_running_loop()
         cookie = get_cookie_file()
         
+        # Audio download settings
         common_opts = {
             "quiet": True,
             "no_warnings": True,
@@ -166,12 +160,17 @@ class YouTubeAPI:
                 info = ydl.extract_info(link, download=True)
                 return ydl.prepare_filename(info)
 
-        if songvideo:
-            opts = {**common_opts, "format": f"{format_id}+140/bestvideo+bestaudio", "outtmpl": f"downloads/{title}.%(ext)s", "merge_output_format": "mp4"}
-        elif songaudio:
-            opts = {**common_opts, "format": "bestaudio/best", "outtmpl": f"downloads/{title}.%(ext)s", "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "192"}]}
-        else:
-            opts = {**common_opts, "format": "bestaudio/best", "outtmpl": "downloads/%(id)s.%(ext)s"}
+        # Video request ko bhi audio mein convert kar dega
+        opts = {
+            **common_opts, 
+            "format": "bestaudio/best", 
+            "outtmpl": f"downloads/{title}.%(ext)s", 
+            "postprocessors": [{
+                "key": "FFmpegExtractAudio", 
+                "preferredcodec": "mp3", 
+                "preferredquality": "192"
+            }]
+        }
 
         downloaded_file = await loop.run_in_executor(None, lambda: ytdl_run(opts))
         return downloaded_file, True
