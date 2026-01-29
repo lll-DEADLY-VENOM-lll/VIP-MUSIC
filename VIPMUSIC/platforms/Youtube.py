@@ -1,259 +1,238 @@
-# ============== VIP MUSIC BOT - FULL FAST MP3 DOWNLOAD EDITION ==============
-# Hinglish + Fast Download 2026 Style | Queue + Player Perfect
-
 import asyncio
+import glob
 import os
 import random
-import glob
-import subprocess
-from collections import deque
+import re
+from typing import Union
 
-from pyrogram import filters
+import yt_dlp
+from pyrogram.enums import MessageEntityType
 from pyrogram.types import Message
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 
-from VIPMUSIC import app, LOGGER
-from VIPMUSIC.utils.youtube import YouTubeAPI   # tera YouTubeAPI class (niche diya hai update)
-from config import API_KEY  # agar chahiye to
+import config
+from VIPMUSIC import LOGGER
+from VIPMUSIC.utils.formatters import time_to_seconds
 
 logger = LOGGER(__name__)
 
-# =================== GLOBAL QUEUE & LOCK ===================
-queues = {}          # chat_id → asyncio.Queue
-now_playing = {}     # chat_id → current song dict
-player_locks = {}    # chat_id → asyncio.Lock
+# Downloads folder check
+if not os.path.exists("downloads"):
+    os.makedirs("downloads")
 
-def get_queue(chat_id: int):
-    if chat_id not in queues:
-        queues[chat_id] = asyncio.Queue()
-    return queues[chat_id]
+# API keys rotation
+API_KEYS = [k.strip() for k in config.API_KEY.split(",") if k.strip()]
+current_key_index = 0
 
-def get_lock(chat_id: int):
-    if chat_id not in player_locks:
-        player_locks[chat_id] = asyncio.Lock()
-    return player_locks[chat_id]
+def get_youtube_client():
+    global current_key_index
+    if not API_KEYS or current_key_index >= len(API_KEYS):
+        return None
+    return build("youtube", "v3", developerKey=API_KEYS[current_key_index], static_discovery=False)
 
-# =================== FAST DOWNLOAD FUNCTION ===================
-async def fast_download_mp3(
-    link: str,
-    title: str = "song",
-    videoid: bool = False,
-    user_id=None,
-    chat_id=None
-) -> tuple[str | None, bool]:
-    """
-    Sabse tez MP3 download – direct audio + aria2c + concurrent fragments
-    """
-    if videoid:
-        link = f"https://www.youtube.com/watch?v={link}"
+def switch_key():
+    global current_key_index
+    current_key_index += 1
+    if current_key_index < len(API_KEYS):
+        logger.warning(f"Quota khatam! Key #{current_key_index + 1} pe switch kar raha hoon")
+        return True
+    logger.error("Saare YouTube API keys khatam ho gaye!")
+    return False
 
-    loop = asyncio.get_running_loop()
-
-    # Cookies for 403 fix
-    cookie_file = None
+def get_cookie_file():
     try:
-        cookie_folder = f"{os.getcwd()}/cookies"
-        txt_files = glob.glob(os.path.join(cookie_folder, '*.txt'))
-        if txt_files:
-            cookie_file = random.choice(txt_files)
-            logger.info(f"Using cookie: {os.path.basename(cookie_file)}")
+        folder = os.path.join(os.getcwd(), "cookies")
+        if not os.path.exists(folder):
+            return None
+        txt_files = glob.glob(os.path.join(folder, '*.txt'))
+        if not txt_files:
+            return None
+        return random.choice(txt_files)
     except Exception as e:
-        logger.warning(f"Cookie nahi mila: {e}")
+        logger.error(f"Cookie error: {e}")
+        return None
 
-    # Common yt-dlp options – SPEED KING
-    common_opts = {
-        "quiet": True,
-        "no_warnings": True,
-        "geo_bypass": True,
-        "nocheckcertificate": True,
-        "continuedl": True,
-        "retries": 15,
-        "fragment_retries": 10,
-        "concurrent_fragment_downloads": 12,          # 8-16 best range (fast internet pe 16 bhi daal sakte)
-        "extractor_args": {
-            "youtube": {
-                "player_client": ["ios", "web", "default"],
-            }
-        },
-    }
+class YouTubeAPI:
+    def __init__(self):
+        self.base = "https://www.youtube.com/watch?v="
+        self.regex = r"(?:youtube\.com|youtu\.be)"
+        self.listbase = "https://youtube.com/playlist?list="
 
-    # aria2c check & enable (sabse bada speed booster)
-    aria2c_available = False
-    try:
-        subprocess.run(["aria2c", "--version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
-        aria2c_available = True
-        common_opts["external_downloader"] = "aria2c"
-        common_opts["external_downloader_args"] = [
-            "-j", "16", "-x", "16", "-s", "16", "-k", "1M",
-            "--summary-interval=0", "--file-allocation=none"
-        ]
-        logger.info("Aria2c mila → Full speed multi-connection ON 🔥")
-    except:
-        logger.info("Aria2c nahi hai → normal mode (thoda slow)")
+    def parse_duration(self, duration):
+        match = re.search(r'PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?', duration)
+        h = int(match.group(1) or 0)
+        m = int(match.group(2) or 0)
+        s = int(match.group(3) or 0)
+        total_sec = h * 3600 + m * 60 + s
+        dur_str = f"{h:02d}:{m:02d}:{s:02d}" if h > 0 else f"{m:02d}:{s:02d}"
+        return dur_str, total_sec
 
-    # curl_cffi for better impersonation (optional but helpful)
-    try:
-        import curl_cffi
-        common_opts["impersonate"] = "chrome124"  # latest chrome 2026 style
-    except ImportError:
-        pass
+    async def exists(self, link: str, videoid: Union[bool, str] = None):
+        if videoid: link = self.base + link
+        return bool(re.search(self.regex, link))
 
-    if cookie_file:
-        common_opts["cookiefile"] = cookie_file
+    async def url(self, message: Message) -> Union[str, None]:
+        msgs = [message]
+        if message.reply_to_message:
+            msgs.append(message.reply_to_message)
+        for msg in msgs:
+            if msg.entities:
+                for ent in msg.entities:
+                    if ent.type == MessageEntityType.URL:
+                        return (msg.text or msg.caption)[ent.offset:ent.offset + ent.length]
+            if msg.caption_entities:
+                for ent in msg.caption_entities:
+                    if ent.type == MessageEntityType.TEXT_LINK:
+                        return ent.url
+        return None
 
-    # Final opts for MP3
-    opts = {
-        **common_opts,
-        "format": "bestaudio[ext=m4a]/bestaudio/best",   # best audio first
-        "outtmpl": f"downloads/{title.replace('/', '_')}.%(ext)s",
-        "postprocessors": [{
-            "key": "FFmpegExtractAudio",
-            "preferredcodec": "mp3",
-            "preferredquality": "0",           # 0 = best (~320kbps), ya "320" fixed
-        }],
-        "keepvideo": False,
-    }
-
-    try:
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            info = await loop.run_in_executor(None, lambda: ydl.extract_info(link, download=False))
-            filename = await loop.run_in_executor(None, lambda: ydl.prepare_filename(info))
-            await loop.run_in_executor(None, lambda: ydl.download([link]))
-
-        if os.path.exists(filename.replace(".webm", ".mp3").replace(".m4a", ".mp3")):
-            final_file = filename.rsplit(".", 1)[0] + ".mp3"
+    async def details(self, link: str, videoid: Union[bool, str] = None):
+        if videoid:
+            vidid = link
         else:
-            final_file = filename
+            match = re.search(r"(?:v=|\/)([0-9A-Za-z_-]{11})", link)
+            vidid = match.group(1) if match else None
 
-        if os.path.exists(final_file):
-            logger.info(f"Fast MP3 success: {final_file}")
-            return final_file, True
-        return None, False
-
-    except Exception as e:
-        logger.error(f"Download crash: {e}")
-        return None, False
-
-# =================== /play COMMAND ===================
-@app.on_message(filters.command(["play", "p", "song"]))
-async def play_cmd(client, message: Message):
-    chat_id = message.chat.id
-    if not chat_id:
-        return await message.reply("Group mein hi chalega bhai!")
-
-    query = " ".join(message.command[1:]) if len(message.command) > 1 else None
-
-    if not query:
-        return await message.reply("Gaana naam ya link daal do yaar 😭")
-
-    yt = YouTubeAPI()
-    track = await yt.track(query)
-    if not track:
-        return await message.reply("YouTube pe nahi mila bhai... sahi link daal")
-
-    song_data = {
-        "title": track["title"],
-        "vidid": track["vidid"],
-        "duration": track["duration_min"],
-        "thumb": track["thumb"],
-        "link": track["link"],
-        "requested_by": message.from_user.id,
-        "username": message.from_user.username or message.from_user.first_name
-    }
-
-    q = get_queue(chat_id)
-    await q.put(song_data)
-
-    position = q.qsize()
-
-    if position == 1 and chat_id not in now_playing:
-        asyncio.create_task(play_next(chat_id))
-        text = "🔥 **Shuru ho raha hai abhi!**"
-    else:
-        text = f"🎶 **Queue mein # {position} pe daal diya**"
-
-    await message.reply(
-        f"**{song_data['title']}**\n"
-        f"⏳ {song_data['duration']} | Requested by: {song_data['username']}\n\n"
-        f"{text}"
-    )
-
-# =================== PLAYER LOOP ===================
-async def play_next(chat_id: int):
-    lock = get_lock(chat_id)
-    async with lock:
         while True:
-            q = get_queue(chat_id)
-            if q.empty():
-                # Queue khatam
-                await stop_vc(chat_id)  # tera stop function
-                now_playing.pop(chat_id, None)
-                await app.send_message(chat_id, "🥳 Queue khatam! Agla gaana daalo")
-                break
-
-            song = await q.get()
-            now_playing[chat_id] = song
-
+            yt = get_youtube_client()
+            if not yt: return None
             try:
-                msg = await app.send_message(
-                    chat_id,
-                    f"⚡ **Fast download chal raha hai...** {song['title']}\nThoda wait (5-20 sec max)"
-                )
+                if not vidid:
+                    srch = await asyncio.to_thread(yt.search().list(q=link, part="id", maxResults=1, type="video").execute)
+                    if not srch.get("items"): return None
+                    vidid = srch["items"][0]["id"]["videoId"]
 
-                file_path, success = await fast_download_mp3(
-                    song["vidid"],
-                    title=song["title"],
-                    videoid=True
-                )
+                data = await asyncio.to_thread(yt.videos().list(part="snippet,contentDetails", id=vidid).execute)
+                if not data.get("items"): return None
 
-                if not success or not file_path:
-                    await msg.edit(f"Download fail: {song['title']}\nNext try kar rahe...")
-                    continue
+                item = data["items"][0]
+                title = item["snippet"]["title"]
+                thumb = item["snippet"]["thumbnails"]["high"]["url"]
+                d_min, d_sec = self.parse_duration(item["contentDetails"]["duration"])
+                return title, d_min, d_sec, thumb, vidid
+            except HttpError as e:
+                if e.resp.status == 403 and switch_key(): continue
+                logger.error(f"API error: {e}")
+                return None
 
-                await msg.edit(f"🎧 **Playing now:** {song['title']}")
+    async def track(self, link: str, videoid: Union[bool, str] = None):
+        res = await self.details(link, videoid)
+        if not res: return None, None
+        title, d_min, _, thumb, vidid = res
+        return {"title": title, "link": self.base + vidid, "vidid": vidid, "duration_min": d_min, "thumb": thumb}, vidid
 
-                # Tera play function (PyTgCalls / pyro voice)
-                await play_in_voice_chat(
-                    chat_id=chat_id,
-                    file_path=file_path,
-                    title=song["title"],
-                    duration=song["duration"],
-                    thumb=song["thumb"],
-                    requested_by=song["requested_by"]
-                )
+    async def download(self, link: str, mystic, video=None, videoid=None, songaudio=None, songvideo=None, format_id=None, title=None) -> tuple:
+        """
+        Direct high-speed Audio downloader with MP3 conversion
+        """
+        if videoid: link = self.base + link
+        loop = asyncio.get_running_loop()
+        cookie = get_cookie_file()
+        
+        # File name sanitize (remove special characters)
+        clean_title = re.sub(r'[^\w\s-]', '', title).strip() if title else "song"
+        final_path = f"downloads/{clean_title}"
 
-                if os.path.exists(file_path):
-                    os.remove(file_path)
+        common_opts = {
+            "quiet": True,
+            "no_warnings": True,
+            "geo_bypass": True,
+            "nocheckcertificate": True,
+            "continuedl": True,
+            "retries": 15,
+            "fragment_retries": 10,
+            # Best way to bypass 403 in 2025/26
+            "extractor_args": {
+                "youtube": {
+                    "player_client": ["android", "ios", "web"],
+                    "player_skip": ["webpage", "configs"],
+                }
+            },
+            "concurrent_fragment_downloads": 10,
+        }
 
-            except Exception as e:
-                logger.error(f"Player error {chat_id}: {e}")
-                await app.send_message(chat_id, "Kuch gadbad... next gaana")
+        # Use aria2c for 10x faster speed if installed
+        try:
+            import subprocess
+            subprocess.run(["aria2c", "--version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            common_opts["external_downloader"] = "aria2c"
+            common_opts["external_downloader_args"] = ["-x", "16", "-s", "16", "-k", "1M"]
+            logger.info("Aria2c detected: Super fast download enabled.")
+        except:
+            pass
 
-            finally:
-                q.task_done()
+        if cookie:
+            common_opts["cookiefile"] = cookie
 
-# =================== HELPERS (Tum change kar lena) ===================
-async def play_in_voice_chat(**kwargs):
-    # Yeh tera asli VC play karne wala function (PyTgCalls ya pyro)
-    pass
+        ytdl_opts = {
+            **common_opts,
+            "format": "bestaudio/best",
+            "outtmpl": f"{final_path}.%(ext)s",
+            "postprocessors": [{
+                "key": "FFmpegExtractAudio",
+                "preferredcodec": "mp3",
+                "preferredquality": "192",
+            }],
+        }
 
-async def stop_vc(chat_id):
-    # VC leave / stop
-    pass
+        try:
+            def ytdl_run():
+                with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
+                    info = ydl.extract_info(link, download=True)
+                    return ydl.prepare_filename(info).rsplit('.', 1)[0] + ".mp3"
 
-# =================== BONUS: /queue command (optional) ===================
-@app.on_message(filters.command("queue"))
-async def show_queue(client, message):
-    chat_id = message.chat.id
-    if chat_id not in queues or get_queue(chat_id).empty():
-        return await message.reply("Queue khali hai bhai!")
+            downloaded_file = await loop.run_in_executor(None, ytdl_run)
+            return downloaded_file, True
 
-    q = get_queue(chat_id)
-    items = []
-    async for i, item in enumerate(q._queue, 1):  # peek
-        items.append(f"{i}. {item['title']} ({item['duration']})")
+        except Exception as e:
+            logger.error(f"Download Error: {str(e)}")
+            # Fallback for 403 or format issues
+            try:
+                ytdl_opts["format"] = "140/bestaudio"
+                downloaded_file = await loop.run_in_executor(None, ytdl_run)
+                return downloaded_file, True
+            except:
+                return None, False
 
-    text = "**Current Queue:**\n" + "\n".join(items)
-    if chat_id in now_playing:
-        text = f"**Now Playing:** {now_playing[chat_id]['title']}\n\n" + text
+    async def video(self, link: str, videoid: Union[bool, str] = None):
+        if videoid: link = self.base + link
+        cookie = get_cookie_file()
+        opts = ["yt-dlp", "-g", "-f", "best[height<=?720]", "--geo-bypass", link]
+        if cookie: opts.extend(["--cookies", cookie])
 
-    await message.reply(text)
+        proc = await asyncio.create_subprocess_exec(*opts, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        stdout, stderr = await proc.communicate()
+        if stdout:
+            return 1, stdout.decode().split("\n")[0].strip()
+        return 0, None
+
+    async def playlist(self, link, limit, user_id, videoid: Union[bool, str] = None):
+        if videoid: link = self.listbase + link
+        cookie = get_cookie_file()
+        cookie_arg = f"--cookies {cookie}" if cookie else ""
+        cmd = f"yt-dlp {cookie_arg} -i --get-id --flat-playlist --playlist-end {limit} --skip-download {link}"
+        proc = await asyncio.create_subprocess_shell(cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        stdout, _ = await proc.communicate()
+        return [k.strip() for k in stdout.decode().split("\n") if k.strip()]
+
+    async def slider(self, link: str, query_type: int, videoid: Union[bool, str] = None):
+        while True:
+            yt = get_youtube_client()
+            if not yt: return None
+            try:
+                srch = await asyncio.to_thread(yt.search().list(q=link, part="snippet", maxResults=10, type="video").execute)
+                if not srch.get("items"): return None
+
+                item = srch["items"][query_type]
+                vidid = item["id"]["videoId"]
+                title = item["snippet"]["title"]
+                thumb = item["snippet"]["thumbnails"]["high"]["url"]
+
+                vres = await asyncio.to_thread(yt.videos().list(part="contentDetails", id=vidid).execute)
+                d_min, _ = self.parse_duration(vres["items"][0]["contentDetails"]["duration"])
+                return title, d_min, thumb, vidid
+            except HttpError as e:
+                if e.resp.status == 403 and switch_key(): continue
+                logger.error(f"Slider error: {e}")
+                return None
