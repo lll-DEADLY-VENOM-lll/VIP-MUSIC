@@ -54,6 +54,7 @@ class YouTubeAPI:
         self.base = "https://www.youtube.com/watch?v="
         self.regex = r"(?:youtube\.com|youtu\.be)"
         self.listbase = "https://youtube.com/playlist?list="
+        self.search_api_url = "https://www.googleapis.com/youtube/v3/search"
 
     def parse_duration(self, duration):
         """ISO 8601 duration conversion"""
