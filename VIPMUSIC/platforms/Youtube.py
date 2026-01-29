@@ -163,6 +163,9 @@ class YouTubeAPI:
                 return None
 
     async def download(self, link: str, mystic, video=None, videoid=None, songaudio=None, songvideo=None, format_id=None, title=None) -> tuple:
+        """
+        Pahle video download karta hai (fast format), phir usko MP3 mein convert karta hai
+        """
         if videoid: link = self.base + link
         loop = asyncio.get_running_loop()
         cookie = get_cookie_file()
@@ -173,16 +176,31 @@ class YouTubeAPI:
             "geo_bypass": True,
             "nocheckcertificate": True,
             "continuedl": True,
-            "retries": 15,
-            "fragment_retries": 10,
-            # Fix for Jan 2026 403: disable blocked android_sdkless client
+            "retries": 10,
+            "fragment_retries": 5,
+            # 403 fix (Jan 2026)
             "extractor_args": {
                 "youtube": {
                     "player_client": ["default", "ios", "web"],
                     "-android_sdkless": None,
                 }
             },
+            # Speed up (multi-connection + concurrent fragments)
+            "concurrent_fragment_downloads": 10,  # 8–16 tak badha sakte ho
         }
+
+        # aria2c agar installed hai to use karo (sabse fast)
+        try:
+            import subprocess
+            subprocess.run(["aria2c", "--version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            common_opts["external_downloader"] = "aria2c"
+            common_opts["external_downloader_args"] = [
+                "-x", "16", "-k", "1M", "-s", "16",
+                "--summary-interval=0", "--file-allocation=none"
+            ]
+            logger.info("aria2c detected → fast multi-connection download ON")
+        except Exception:
+            logger.info("aria2c nahi mila → normal download mode")
 
         try:
             import curl_cffi
@@ -204,26 +222,27 @@ class YouTubeAPI:
         temp_video_file = None
 
         try:
-            # Step 1: Pahle video download (combined format – 403 kam aata hai)
+            # Step 1: Fast video download (single file prefer karo)
             video_opts = {
                 **common_opts,
-                "format": "best[ext=mp4][height<=720]/bestvideo[ext=mp4]+bestaudio[ext=m4a]/best",
-                "outtmpl": f"downloads/{title}_temp.%(ext)s",
+                "format": "22/best[ext=mp4][height<=720]/best",  # 720p single file fast
+                "outtmpl": f"downloads/{title or 'temp_video'}_temp.%(ext)s",
                 "merge_output_format": "mp4",
             }
 
             temp_video_file = await loop.run_in_executor(None, lambda: ytdl_run(video_opts))
-            logger.info(f"Temp video downloaded: {temp_video_file}")
+            logger.info(f"Temp video downloaded (fast): {temp_video_file}")
 
-            # Step 2: Video se audio extract karo (MP3 convert)
-            mp3_file = f"downloads/{title}.mp3"
+            # Step 2: Video → MP3 convert
+            mp3_file = f"downloads/{title or 'song'}.mp3"
 
             ffmpeg_cmd = [
                 "ffmpeg",
                 "-i", temp_video_file,
-                "-vn",                # video disable
+                "-vn",
                 "-acodec", "libmp3lame",
-                "-q:a", "2",          # quality ~192-256kbps (0 for best ~320kbps)
+                "-q:a", "0",          # best quality (~320kbps) – fast conversion
+                "-threads", "0",      # auto threads for faster FFmpeg
                 "-y", mp3_file
             ]
 
@@ -237,22 +256,22 @@ class YouTubeAPI:
             if proc.returncode == 0:
                 downloaded_file = mp3_file
                 success = True
-                logger.info(f"Audio convert success: {mp3_file}")
+                logger.info(f"Audio convert success (fast): {mp3_file}")
             else:
-                logger.error(f"FFmpeg fail: {stderr.decode().strip()}")
+                logger.error(f"FFmpeg error: {stderr.decode().strip()}")
 
-            # Temp video delete
+            # Temp file delete
             if temp_video_file and os.path.exists(temp_video_file):
                 os.remove(temp_video_file)
 
         except Exception as e:
             logger.error(f"Video download fail: {str(e)}")
-            # Fallback: Direct audio try (if video blocked)
+            # Fallback (old audio way)
             try:
                 opts = {
                     **common_opts,
                     "format": "140/251/bestaudio[ext=m4a]",
-                    "outtmpl": f"downloads/{title}.%(ext)s",
+                    "outtmpl": f"downloads/{title or 'song'}.%(ext)s",
                     "postprocessors": [{
                         "key": "FFmpegExtractAudio",
                         "preferredcodec": "mp3",
