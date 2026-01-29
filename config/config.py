@@ -33,7 +33,7 @@ MONGO_DB_URI = getenv("MONGO_DB_URI", "mongodb+srv://vishalpandeynkp:Bal6Y6FZeQe
 # यहाँ अपनी सभी Keys को कोमा (,) लगाकर डालें। 
 # उदाहरण: "key1, key2, key3"
 # -----------------------------------------------------------------
-API_KEY = getenv("API_KEY", "AIzaSyAurKSn9YNaY34MBogPzcR1YJ-bvmInm7U, AIzaSyCApVjCS5KA8xIVhqPTq0IdNriVv95Tnq4, AIzaSyDlTU81AhslOne7AjKrFe_BLPBuTg0PbW0,")
+API_KEY = getenv("API_KEY", "AIzaSyCi7cuAr68B3xPxeXueL5ctrohUKN9vOkI, AIzaSyA2oAZkM8bNc8OZa7l8pUD1ewzm3znqqp4, AIzaSyCRAWbCvLEwi_viFzf0zakWOjoXMNOooEk")
 # -----------------------------------------------------------------
 
 CLEANMODE_DELETE_MINS = int(
