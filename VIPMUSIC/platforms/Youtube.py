@@ -37,7 +37,7 @@ def switch_key():
     logger.error("All YouTube API Keys are exhausted!")
     return False
 
-# --- COOKIE LOGIC (As per your file) ---
+# --- COOKIE LOGIC ---
 def get_cookie_file():
     try:
         folder_path = f"{os.getcwd()}/cookies"
@@ -54,9 +54,10 @@ class YouTubeAPI:
         self.base = "https://www.youtube.com/watch?v="
         self.regex = r"(?:youtube\.com|youtu\.be)"
         self.listbase = "https://youtube.com/playlist?list="
+        # Bypass ke liye User-Agent
+        self.user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
 
     def parse_duration(self, duration):
-        """ISO 8601 duration conversion"""
         match = re.search(r'PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?', duration)
         hours = int(match.group(1) or 0)
         minutes = int(match.group(2) or 0)
@@ -84,6 +85,7 @@ class YouTubeAPI:
                         return entity.url
         return None
 
+    # Metadata ke liye API v3 ka hi use
     async def details(self, link: str, videoid: Union[bool, str] = None):
         if videoid: 
             vidid = link
@@ -108,7 +110,6 @@ class YouTubeAPI:
                 thumb = item["snippet"]["thumbnails"]["high"]["url"]
                 d_min, d_sec = self.parse_duration(item["contentDetails"]["duration"])
                 return title, d_min, d_sec, thumb, vidid
-
             except HttpError as e:
                 if e.resp.status == 403 and switch_key(): continue
                 return None
@@ -119,10 +120,19 @@ class YouTubeAPI:
         title, d_min, d_sec, thumb, vidid = res
         return {"title": title, "link": self.base + vidid, "vidid": vidid, "duration_min": d_min, "thumb": thumb}, vidid
 
+    # Stream link nikalne ke liye optimized yt-dlp
     async def video(self, link: str, videoid: Union[bool, str] = None):
         if videoid: link = self.base + link
         cookie = get_cookie_file()
-        opts = ["yt-dlp", "-g", "-f", "best[height<=?720]", "--geo-bypass", link]
+        
+        # FIX: Android client force karna "video data" error ke liye
+        opts = [
+            "yt-dlp", "-g", "-f", "best[height<=?720]", 
+            "--geo-bypass", 
+            "--user-agent", self.user_agent,
+            "--extractor-args", "youtube:player_client=android,web;skip=dash,hls",
+            link
+        ]
         if cookie: opts.extend(["--cookies", cookie])
         
         proc = await asyncio.create_subprocess_exec(*opts, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
@@ -133,6 +143,7 @@ class YouTubeAPI:
         if videoid: link = self.listbase + link
         cookie = get_cookie_file()
         cookie_arg = f"--cookies {cookie}" if cookie else ""
+        # Flat playlist ke liye yt-dlp sahi hai
         cmd = f"yt-dlp {cookie_arg} -i --get-id --flat-playlist --playlist-end {limit} --skip-download {link}"
         playlist = await asyncio.create_subprocess_shell(cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
         stdout, _ = await playlist.communicate()
@@ -145,13 +156,10 @@ class YouTubeAPI:
             try:
                 search = await asyncio.to_thread(youtube.search().list(q=link, part="snippet", maxResults=10, type="video").execute)
                 if not search.get("items"): return None
-                
-                # Filter Logic (You can add duration filters here if needed)
                 item = search["items"][query_type]
                 vidid = item["id"]["videoId"]
                 title = item["snippet"]["title"]
                 thumb = item["snippet"]["thumbnails"]["high"]["url"]
-                
                 v_res = await asyncio.to_thread(youtube.videos().list(part="contentDetails", id=vidid).execute)
                 d_min, _ = self.parse_duration(v_res["items"][0]["contentDetails"]["duration"])
                 return title, d_min, thumb, vidid
@@ -159,12 +167,27 @@ class YouTubeAPI:
                 if e.resp.status == 403 and switch_key(): continue
                 return None
 
+    # Download ke liye sabse zyada settings ki zaroorat hai
     async def download(self, link: str, mystic, video=None, videoid=None, songaudio=None, songvideo=None, format_id=None, title=None) -> str:
         if videoid: link = self.base + link
         loop = asyncio.get_running_loop()
         cookie = get_cookie_file()
         
-        common_opts = {"quiet": True, "no_warnings": True, "geo_bypass": True, "nocheckcertificate": True}
+        # Bypassing YouTube Restrictions
+        common_opts = {
+            "quiet": True, 
+            "no_warnings": True, 
+            "geo_bypass": True, 
+            "nocheckcertificate": True,
+            "user_agent": self.user_agent,
+            "extractor_args": {
+                "youtube": {
+                    "player_client": ["android", "web"],
+                    "skip": ["dash", "hls"]
+                }
+            },
+            "retries": 5
+        }
         if cookie: common_opts["cookiefile"] = cookie
 
         def ytdl_run(opts):
@@ -173,13 +196,15 @@ class YouTubeAPI:
                 return ydl.prepare_filename(info)
 
         if songvideo:
-            fpath = f"downloads/{title}.mp4"
             opts = {**common_opts, "format": f"{format_id}+140/bestvideo+bestaudio", "outtmpl": f"downloads/{title}.%(ext)s", "merge_output_format": "mp4"}
         elif songaudio:
-            fpath = f"downloads/{title}.mp3"
             opts = {**common_opts, "format": "bestaudio/best", "outtmpl": f"downloads/{title}.%(ext)s", "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "192"}]}
         else:
             opts = {**common_opts, "format": "bestaudio/best", "outtmpl": "downloads/%(id)s.%(ext)s"}
 
-        downloaded_file = await loop.run_in_executor(None, lambda: ytdl_run(opts))
-        return downloaded_file, True
+        try:
+            downloaded_file = await loop.run_in_executor(None, lambda: ytdl_run(opts))
+            return downloaded_file, True
+        except Exception as e:
+            logger.error(f"Download Error: {e}")
+            return None, False
