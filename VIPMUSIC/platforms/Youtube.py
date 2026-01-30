@@ -121,7 +121,15 @@ class YouTubeAPI:
     async def video(self, link: str, videoid: Union[bool, str] = None):
         if videoid: link = self.base + link
         cookie = get_cookie_file()
-        opts = ["yt-dlp", "-g", "-f", "best[height<=?720]", "--geo-bypass", link]
+        # Added extra args to video streaming link fetcher to avoid 403
+        opts = [
+            "yt-dlp", 
+            "-g", 
+            "-f", "best[height<=?720]", 
+            "--geo-bypass", 
+            "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            link
+        ]
         if cookie: opts.extend(["--cookies", cookie])
         
         proc = await asyncio.create_subprocess_exec(*opts, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
@@ -164,17 +172,26 @@ class YouTubeAPI:
         loop = asyncio.get_running_loop()
         cookie = get_cookie_file()
         
-        # Ensure downloads folder exists
         if not os.path.exists("downloads"):
             os.makedirs("downloads")
 
+        # 403 Forbidden Bypass Options
         common_opts = {
             "quiet": True,
             "no_warnings": True,
             "geo_bypass": True,
             "nocheckcertificate": True,
-            "restrictfilenames": True,  # Removes special characters from filename
+            "restrictfilenames": True,
+            "source_address": "0.0.0.0", # Force IPv4 to avoid VPS blocking
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+            "extractor_args": {
+                "youtube": {
+                    "player_client": ["android", "ios"], # Best bypass for 403
+                    "skip": ["dash", "hls"]
+                }
+            }
         }
+        
         if cookie: 
             common_opts["cookiefile"] = cookie
 
@@ -184,12 +201,12 @@ class YouTubeAPI:
                     info = ydl.extract_info(link, download=True)
                     return ydl.prepare_filename(info)
             except Exception as e:
-                logger.error(f"Download error: {str(e)}")
+                logger.error(f"Download Error: {str(e)}")
                 return None
 
         if songvideo:
-            # Video + Audio merge logic
-            f_id = f"{format_id}+140/bestvideo+bestaudio" if format_id else "bestvideo+bestaudio/best"
+            # High quality video merging
+            f_id = f"{format_id}+140/bestvideo+bestaudio/best" if format_id else "bestvideo+bestaudio/best"
             opts = {
                 **common_opts,
                 "format": f_id,
