@@ -226,21 +226,20 @@ async def start_comm(client, message: Message, _):
     else:
         out = private_panel(_)
         try:
-            # Effect ID 🔥 (Fire) = 5104841245755180586
+            # Strawberry Effect ID 🍓 = 5311823902341673323
             await message.reply_photo(
                 photo=config.START_IMG_URL,
                 caption=_["start_2"].format(message.from_user.mention, app.mention),
                 reply_markup=InlineKeyboardMarkup(out),
-                message_effect_id=5104841245755180586
+                message_effect_id=5311823902341673323
             )
         except Exception:
-            # अगर इफेक्ट काम न करे तो साधारण फोटो भेजेगा
             await message.reply_photo(
                 photo=config.START_IMG_URL,
                 caption=_["start_2"].format(message.from_user.mention, app.mention),
                 reply_markup=InlineKeyboardMarkup(out),
             )
-            
+
         if await is_on_off(config.LOG):
             sender_id = message.from_user.id
             sender_name = message.from_user.first_name
