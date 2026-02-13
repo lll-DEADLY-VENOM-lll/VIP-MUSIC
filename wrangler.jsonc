@@ -1,0 +1,6 @@
+name = "my-python-bot"
+main = "main.py"  # Aapki main python file ka naam
+compatibility_date = "2024-01-01"
+
+[python_workers]
+enabled = true
