@@ -7,6 +7,7 @@
 #
 # All rights reserved.
 #
+
 import asyncio
 import time
 import traceback
@@ -43,7 +44,7 @@ from .help import paginate_modules
 
 loop = asyncio.get_running_loop()
 
-# Function to fix Group ID if -100 is missing
+# Helper function to sanitize Log Group ID and avoid "Peer id invalid"
 def get_log_id():
     log_id = config.LOG_GROUP_ID
     if not log_id:
@@ -67,7 +68,7 @@ async def ban_new(client, message):
     if await is_banned_user(user_id):
         try:
             await message.chat.ban_member(user_id)
-            await message.reply_text("😳")
+            await message.reply_text("You are banned from using this bot! 😳")
         except:
             pass
 
@@ -75,28 +76,39 @@ async def ban_new(client, message):
 @LanguageStart
 async def start_comm(client, message: Message, _):
     await add_served_user(message.from_user.id)
-    await message.react("🕊️")
     
+    # 1. ADD REACTION TO START COMMAND
+    try:
+        await message.react("🕊️")
+    except:
+        pass
+    
+    # 2. HANDLE DEEP LINKS (Arguments after /start)
     if len(message.text.split()) > 1:
         name = message.text.split(None, 1)[1]
         
+        # Help link
         if name[0:4] == "help":
             keyboard = InlineKeyboardMarkup(paginate_modules(0, HELPABLE, "help", close=True))
             if config.START_IMG_URL:
                 return await message.reply_photo(photo=START_IMG_URL, caption=_["help_1"], reply_markup=keyboard)
             return await message.reply_text(text=_["help_1"], reply_markup=keyboard)
 
+        # Song link
         if name[0:4] == "song":
             return await message.reply_text(_["song_2"])
 
+        # Markdown help link
         if name == "mkdwn_help":
             return await message.reply(MARKDOWN, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
 
+        # Greetings help link
         if name == "greetings":
             return await message.reply(WELCOMEHELP, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
 
+        # Personal Stats link
         if name[0:3] == "sta":
-            m = await message.reply_text("🔎 ғᴇᴛᴄʜɪɴɢ ʏᴏᴜʀ ᴘᴇʀsᴏɴᴀʟ sᴛᴀᴛs.!")
+            m = await message.reply_text("🔎 Fetching your personal stats...")
             stats = await get_userss(message.from_user.id)
             if not stats:
                 return await m.edit(_["ustats_1"])
@@ -118,7 +130,7 @@ async def start_comm(client, message: Message, _):
                     limit += 1
                     title = (stats.get(vidid)["title"][:35]).title()
                     if vidid == "telegram":
-                        msg += f"🔗 [ᴛᴇʟᴇɢʀᴀᴍ ғɪʟᴇs]({config.SUPPORT_GROUP}) ** {count} times**\n\n"
+                        msg += f"🔗 [TELEGRAM FILES]({config.SUPPORT_GROUP}) ** {count} times**\n\n"
                     else:
                         msg += f"🔗 [{title}](https://www.youtube.com/watch?v={vidid}) ** {count} times**\n\n"
                 return videoid, _["ustats_2"].format(len(stats), tota, limit) + msg
@@ -129,55 +141,54 @@ async def start_comm(client, message: Message, _):
                 await m.delete()
                 await message.reply_photo(photo=thumbnail, caption=msg)
             except Exception:
-                await m.edit("ғᴀɪʟᴇᴅ ᴛᴏ ɢᴇᴛ sᴛᴀᴛs.")
+                await m.edit("Failed to fetch statistics.")
             return
 
+        # Sudo list link
         if name[0:3] == "sud":
             await sudoers_list(client=client, message=message, _=_)
-            if await is_on_off(config.LOG):
-                try:
-                    await app.send_message(
-                        get_log_id(),
-                        f"{message.from_user.mention} ʜᴀs ᴄʜᴇᴄᴋᴇᴅ `sᴜᴅᴏʟɪsᴛ`.\n**ID:** {message.from_user.id}"
-                    )
-                except Exception:
-                    traceback.print_exc()
             return
 
+        # Video info link
         if name[0:3] == "inf":
-            m = await message.reply_text("🔎 ғᴇᴛᴄʜɪɴɢ...")
+            m = await message.reply_text("🔎 Fetching video info...")
             query = (str(name)).replace("info_", "", 1)
             results = VideosSearch(f"https://www.youtube.com/watch?v={query}", limit=1)
             for result in (await results.next())["result"]:
                 title, duration, views = result["title"], result["duration"], result["viewCount"]["short"]
                 thumbnail, link = result["thumbnails"][0]["url"].split("?")[0], result["link"]
             
-            key = InlineKeyboardMarkup([[InlineKeyboardButton("🎥 ᴡᴀᴛᴄʜ", url=link), InlineKeyboardButton("🔄 ᴄʟᴏsᴇ", callback_data="close")]])
+            key = InlineKeyboardMarkup([[InlineKeyboardButton("🎥 Watch", url=link), InlineKeyboardButton("🔄 Close", callback_data="close")]])
             await m.delete()
-            await app.send_photo(message.chat.id, photo=thumbnail, caption=f"🔍 **ᴠɪᴅᴇᴏ ɪɴғᴏ**\n\n📌 **ᴛɪᴛʟᴇ:** {title}\n⏳ **ᴅᴜʀᴀᴛɪᴏɴ:** {duration}", reply_markup=key)
+            await app.send_photo(message.chat.id, photo=thumbnail, caption=f"🔍 **Video Info**\n\n📌 **Title:** {title}\n⏳ **Duration:** {duration}", reply_markup=key)
             return
 
-    # Default Start
+    # 3. DEFAULT MAIN START MESSAGE WITH ID EFFECT
     out = private_panel(_)
     try:
         await message.reply_photo(
             photo=config.START_IMG_URL,
             caption=_["start_2"].format(message.from_user.mention, app.mention),
             reply_markup=InlineKeyboardMarkup(out),
-            message_effect_id=5311823902341673323
+            message_effect_id="5311823902341673323" # <--- Heart/Premium Effect
         )
-    except:
-        await message.reply_photo(photo=config.START_IMG_URL, caption=_["start_2"].format(message.from_user.mention, app.mention), reply_markup=InlineKeyboardMarkup(out))
+    except Exception:
+        # Fallback if the effect isn't supported by the user's client or bot version
+        await message.reply_photo(
+            photo=config.START_IMG_URL, 
+            caption=_["start_2"].format(message.from_user.mention, app.mention), 
+            reply_markup=InlineKeyboardMarkup(out)
+        )
 
+    # Log activity to Log Group
     if await is_on_off(config.LOG):
         try:
             await app.send_message(
                 get_log_id(),
-                f"{message.from_user.mention} ʜᴀs sᴛᴀʀᴛᴇᴅ ᴛʜᴇ ʙᴏᴛ.\n**ᴜsᴇʀ ɪᴅ:** {message.from_user.id}"
+                f"{message.from_user.mention} has started the bot.\n**User ID:** `{message.from_user.id}`"
             )
         except Exception:
-            print(f"ERROR: Cannot send log to {config.LOG_GROUP_ID}")
-            traceback.print_exc()
+            pass
 
 @app.on_message(filters.command(["start"]) & filters.group & ~BANNED_USERS)
 @LanguageStart
@@ -195,7 +206,7 @@ async def testbot(client, message: Message, _):
 async def welcome(client, message: Message):
     chat_id = message.chat.id
     if config.PRIVATE_BOT_MODE == str(True) and not await is_served_private_chat(chat_id):
-        await message.reply_text("ᴛʜɪs ʙᴏᴛ ɪs ɪɴ ᴘʀɪᴠᴀᴛᴇ ᴍᴏᴅᴇ.")
+        await message.reply_text("This bot is in Private Mode. Only authorized chats can use it.")
         return await app.leave_chat(chat_id)
     
     await add_served_chat(chat_id)
@@ -221,12 +232,12 @@ async def welcome(client, message: Message):
         except:
             pass
 
-__MODULE__ = "Boᴛ"
+__MODULE__ = "Bot"
 __HELP__ = """
-<b>★ /stats</b> - Gᴇᴛ Tᴏᴘ 𝟷𝟶 Sᴛᴀᴛs
-<b>★ /sudolist</b> - Cʜᴇᴄᴋ Sᴜᴅᴏ Usᴇʀs
-<b>★ /lyrics</b> - Sᴇᴀʀᴄʜ Lʏʀɪᴄs
-<b>★ /song</b> - Dᴏᴡɴʟᴏᴀᴅ Sᴏɴɢs
-<b>★ /player</b> - Pʟᴀʏɪɴɢ Pᴀɴᴇʟ
-<b>★ /queue</b> - Cʜᴇᴄᴋ Qᴜᴇᴜᴇ
+<b>★ /stats</b> - Get Top 10 Stats
+<b>★ /sudolist</b> - Check Sudo Users
+<b>★ /lyrics</b> - Search Lyrics
+<b>★ /song</b> - Download Songs
+<b>★ /player</b> - Music Control Panel
+<b>★ /queue</b> - Show Music Queue
 """
