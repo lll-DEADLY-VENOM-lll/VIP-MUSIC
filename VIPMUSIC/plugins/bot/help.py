@@ -22,7 +22,7 @@ from VIPMUSIC import HELPABLE, app
 from VIPMUSIC.utils.database import get_lang, is_commanddelete_on
 from VIPMUSIC.utils.decorators.language import LanguageStart, languageCB
 from VIPMUSIC.utils.inline.help import private_help_panel
-from VIPMUSIC.utils.inline.start import start_pannel # Home button ke liye zaroori hai
+from VIPMUSIC.utils.inline.start import start_pannel # <--- Important for Home Button
 
 ### Configurations
 HELP_COMMAND = get_command("HELP_COMMAND")
@@ -67,6 +67,7 @@ def paginate_modules(page_n, module_dict, prefix, chat=None, close: bool = False
         pairs.append([EqInlineKeyboardButton("🗑️ ᴄʟᴏsᴇ" if close else "🔙 ʙᴀᴄᴋ", callback_data="close" if close else "feature")])
     return pairs
 
+# --- Start/Help Command Private ---
 @app.on_message(filters.command(HELP_COMMAND) & filters.private & ~BANNED_USERS)
 @app.on_callback_query(filters.regex("settings_back_helper") & ~BANNED_USERS)
 async def helper_private(client: app, update: Union[types.Message, types.CallbackQuery]):
@@ -99,6 +100,7 @@ async def help_com_group(client, message: Message, _):
     keyboard = private_help_panel(_)
     await message.reply_text(_["help_2"], reply_markup=InlineKeyboardMarkup(keyboard))
 
+# --- Help Button Callbacks ---
 @app.on_callback_query(filters.regex(r"help_(.*?)"))
 async def help_button(client, query):
     mod_match = re.match(r"help_module\((.+?),(.+?)\)", query.data)
@@ -123,30 +125,21 @@ async def help_button(client, query):
         await query.message.edit(text=top_text, reply_markup=InlineKeyboardMarkup(paginate_modules(page, HELPABLE, "help")), disable_web_page_preview=True)
     await client.answer_callback_query(query.id)
 
-# --- 2026 Dynamic Callback Handler for Sub-menus ---
+# --- Dynamic Help Menu Handlers ---
 @app.on_callback_query(filters.regex(r"^(music|management|tools)_callback") & ~BANNED_USERS)
 @languageCB
 async def dynamic_help_cb(client, cb: CallbackQuery, _):
     data = cb.data.split()
     category = data[0].split("_")[0] 
     sub_key = data[1] if len(data) > 1 else ""
-
-    map_data = {
-        "music": ("HELP_", "music"),
-        "management": ("MHELP_", "management"),
-        "tools": ("THELP_", "tools")
-    }
-    
+    map_data = {"music": ("HELP_", "music"), "management": ("MHELP_", "management"), "tools": ("THELP_", "tools")}
     prefix, back_cmd = map_data.get(category)
-    
     if sub_key == "ai": help_text = helpers.AI_1
     elif sub_key == "extra": help_text = helpers.EXTRA_1
     else:
         index = sub_key.replace("hb", "")
         help_text = getattr(helpers, f"{prefix}{index}", "Information not found.")
-
-    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(_["BACK_BUTTON"], callback_data=back_cmd)]])
-    await cb.edit_message_text(help_text, reply_markup=keyboard)
+    await cb.edit_message_text(help_text, reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(_["BACK_BUTTON"], callback_data=back_cmd)]]))
 
 @app.on_callback_query(filters.regex("feature"))
 async def feature_callback(client: Client, cb: CallbackQuery):
@@ -159,94 +152,50 @@ async def feature_callback(client: Client, cb: CallbackQuery):
     text = f"**✨ ᴡᴇʟᴄᴏᴍᴇ ᴛᴏ {app.mention} ʜᴇʟᴘ ᴄᴇɴᴛᴇʀ**\n\n**━━ ᴘᴏᴡᴇʀᴇᴅ ʙʏ 2026 ɴᴇᴜʀᴀʟ ᴇɴɢɪɴᴇ ━━**\n**⚡ ꜰᴀsᴛ | 🔒 sᴇᴄᴜʀᴇ | 🎧 ʜᴅ ᴀᴜᴅɪᴏ**\n\nᴄʟɪᴄᴋ ᴏɴ ᴛʜᴇ ʙᴜᴛᴛᴏɴs ʙᴇʟᴏᴡ ᴛᴏ sᴇᴇ ᴄᴏᴍᴍᴀɴᴅs."
     await cb.message.edit_text(text=text, reply_markup=InlineKeyboardMarkup(keyboard))
 
+# --- Sub Panels (Music, Management, Tools) ---
 @app.on_callback_query(filters.regex("music"))
 async def music_panel(client, cb):
-    buttons = [
-        ["Aᴅᴍɪɴ", "Aᴜᴛʜ", "B-ᴄᴀsᴛ"], ["Bʟ-ᴄʜᴀᴛ", "Bʟ-ᴜsᴇʀ", "ᴄ-ᴘʟᴀʏ"],
-        ["ɢ-ʙᴀɴ", "ʟᴏᴏᴘ", "ᴍᴀɪɴᴛᴇɴ"], ["ᴘɪɴɢ", "ᴘʟᴀʏ", "sʜᴜꜰꜰʟᴇ"],
-        ["sᴇᴇᴋ", "sᴏɴɢ", "sᴘᴇᴇᴅ"]
-    ]
-    kb = []
-    for i, row in enumerate(buttons):
-        kb.append([InlineKeyboardButton(text, callback_data=f"music_callback hb{i*3 + j + 1}") for j, text in enumerate(row)])
+    buttons = [["Aᴅᴍɪɴ", "Aᴜᴛʜ", "B-ᴄᴀsᴛ"], ["Bʟ-ᴄʜᴀᴛ", "Bʟ-ᴜsᴇʀ", "ᴄ-ᴘʟᴀʏ"], ["ɢ-ʙᴀɴ", "ʟᴏᴏᴘ", "ᴍᴀɪɴᴛᴇɴ"], ["ᴘɪɴɢ", "ᴘʟᴀʏ", "sʜᴜꜰꜰʟᴇ"], ["sᴇᴇᴋ", "sᴏɴɢ", "sᴘᴇᴇᴅ"]]
+    kb = [[InlineKeyboardButton(text, callback_data=f"music_callback hb{i*3 + j + 1}") for j, text in enumerate(row)] for i, row in enumerate(buttons)]
     kb.append([InlineKeyboardButton("🔙 ʙᴀᴄᴋ", callback_data="feature")])
     await cb.message.edit("🎵 **ᴍᴜsɪᴄ ᴄᴏᴍᴍᴀɴᴅs ᴍᴇɴᴜ**", reply_markup=InlineKeyboardMarkup(kb))
 
 @app.on_callback_query(filters.regex("management"))
 async def mgmt_panel(client, cb):
-    kb = [
-        [InlineKeyboardButton("🌟 ᴇxᴛʀᴀ", callback_data="management_callback extra")],
-        [InlineKeyboardButton("🚫 ʙᴀɴ", callback_data="management_callback hb1"), InlineKeyboardButton("👞 ᴋɪᴄᴋ", callback_data="management_callback hb2"), InlineKeyboardButton("🔇 ᴍᴜᴛᴇ", callback_data="management_callback hb3")],
-        [InlineKeyboardButton("📌 ᴘɪɴ", callback_data="management_callback hb4"), InlineKeyboardButton("👥 sᴛᴀꜰꜰ", callback_data="management_callback hb5"), InlineKeyboardButton("⚙️ sᴇᴛᴜᴘ", callback_data="management_callback hb6")],
-        [InlineKeyboardButton("🧟 ᴢᴏᴍʙɪᴇ", callback_data="management_callback hb7"), InlineKeyboardButton("🎮 ɢᴀᴍᴇ", callback_data="management_callback hb8"), InlineKeyboardButton("🎭 ɪᴍᴘᴏsᴛᴇʀ", callback_data="management_callback hb9")],
-        [InlineKeyboardButton("🔙 ʙᴀᴄᴋ", callback_data="feature")]
-    ]
+    kb = [[InlineKeyboardButton("🌟 ᴇxᴛʀᴀ", callback_data="management_callback extra")], [InlineKeyboardButton("🚫 ʙᴀɴ", callback_data="management_callback hb1"), InlineKeyboardButton("👞 ᴋɪᴄᴋ", callback_data="management_callback hb2"), InlineKeyboardButton("🔇 ᴍᴜᴛᴇ", callback_data="management_callback hb3")], [InlineKeyboardButton("📌 ᴘɪɴ", callback_data="management_callback hb4"), InlineKeyboardButton("👥 sᴛᴀꜰꜰ", callback_data="management_callback hb5"), InlineKeyboardButton("⚙️ sᴇᴛᴜᴘ", callback_data="management_callback hb6")], [InlineKeyboardButton("🧟 ᴢᴏᴍʙɪᴇ", callback_data="management_callback hb7"), InlineKeyboardButton("🎮 ɢᴀᴍᴇ", callback_data="management_callback hb8"), InlineKeyboardButton("🎭 ɪᴍᴘᴏsᴛᴇʀ", callback_data="management_callback hb9")], [InlineKeyboardButton("🔙 ʙᴀᴄᴋ", callback_data="feature")]]
     await cb.message.edit("🛡️ **ᴍᴀɴᴀɢᴇᴍᴇɴᴛ ᴄᴏᴍᴍᴀɴᴅs ᴍᴇɴᴜ**", reply_markup=InlineKeyboardMarkup(kb))
 
 @app.on_callback_query(filters.regex("tools"))
 async def tools_panel(client, cb):
-    kb = [
-        [InlineKeyboardButton("🤖 ᴄʜᴀᴛɢᴘᴛ", callback_data="tools_callback ai")],
-        [InlineKeyboardButton("🔍 ɢᴏᴏɢʟᴇ", callback_data="tools_callback hb1"), InlineKeyboardButton("🎙️ ᴠᴏɪᴄᴇ", callback_data="tools_callback hb2"), InlineKeyboardButton("ℹ️ ɪɴꜰᴏ", callback_data="tools_callback hb3")],
-        [InlineKeyboardButton("🎨 ꜰᴏɴᴛ", callback_data="tools_callback hb4"), InlineKeyboardButton("🔢 ᴍᴀᴛʜ", callback_data="tools_callback hb5"), InlineKeyboardButton("📣 ᴛᴀɢᴀʟʟ", callback_data="tools_callback hb6")],
-        [InlineKeyboardButton("🔙 ʙᴀᴄᴋ", callback_data="feature")]
-    ]
+    kb = [[InlineKeyboardButton("🤖 ᴄʜᴀᴛɢᴘᴛ", callback_data="tools_callback ai")], [InlineKeyboardButton("🔍 ɢᴏᴏɢʟᴇ", callback_data="tools_callback hb1"), InlineKeyboardButton("🎙️ ᴠᴏɪᴄᴇ", callback_data="tools_callback hb2"), InlineKeyboardButton("ℹ️ ɪɴꜰᴏ", callback_data="tools_callback hb3")], [InlineKeyboardButton("🎨 ꜰᴏɴᴛ", callback_data="tools_callback hb4"), InlineKeyboardButton("🔢 ᴍᴀᴛʜ", callback_data="tools_callback hb5"), InlineKeyboardButton("📣 ᴛᴀɢᴀʟʟ", callback_data="tools_callback hb6")], [InlineKeyboardButton("🔙 ʙᴀᴄᴋ", callback_data="feature")]]
     await cb.message.edit("🛠️ **ᴜᴛɪʟɪᴛʏ & AI ᴛᴏᴏʟs ᴍᴇɴᴜ**", reply_markup=InlineKeyboardMarkup(kb))
 
+# --- About, Developer, Donate ---
 @app.on_callback_query(filters.regex("about"))
 async def about_callback(client: Client, cb: CallbackQuery):
-    buttons = [
-        [InlineKeyboardButton("👨‍💻 ᴅᴇᴠᴇʟᴏᴘᴇʀ", callback_data="developer"), InlineKeyboardButton("🚀 ꜰᴇᴀᴛᴜʀᴇs", callback_data="feature")],
-        [InlineKeyboardButton("📘 ɢᴜɪᴅᴇ", callback_data="basic_guide"), InlineKeyboardButton("💎 ᴅᴏɴᴀᴛᴇ", callback_data="donate")],
-        [InlineKeyboardButton("🏠 ʜᴏᴍᴇ", callback_data="go_to_start")]
-    ]
-    await cb.message.edit_text(
-        f"**✨ {app.mention} ɪs ᴀ ᴘᴏᴡᴇʀꜰᴜʟ ɢʀᴏᴜᴘ ᴍᴀɴᴀɢᴇʀ & ᴍᴜsɪᴄ ʙᴏᴛ.**\n\n● sᴘᴀᴍ protection\n● ᴜʟᴛʀᴀ HD ᴍᴜsɪᴄ\n● ᴀɪ powered tools\n● Custom Welcome & Rules",
-        reply_markup=InlineKeyboardMarkup(buttons)
-    )
+    buttons = [[InlineKeyboardButton("👨‍💻 ᴅᴇᴠᴇʟᴏᴘᴇʀ", callback_data="developer"), InlineKeyboardButton("🚀 ꜰᴇᴀᴛᴜʀᴇs", callback_data="feature")], [InlineKeyboardButton("📘 ɢᴜɪᴅᴇ", callback_data="basic_guide"), InlineKeyboardButton("💎 ᴅᴏɴᴀᴛᴇ", callback_data="donate")], [InlineKeyboardButton("🏠 ʜᴏᴍᴇ", callback_data="go_to_start")]]
+    await cb.message.edit_text(f"**✨ {app.mention} ɪs ᴀ ᴘᴏᴡᴇʀꜰᴜʟ ɢʀᴏᴜᴘ ᴍᴀɴᴀɢᴇʀ & ᴍᴜsɪᴄ ʙᴏᴛ.**", reply_markup=InlineKeyboardMarkup(buttons))
 
 @app.on_callback_query(filters.regex("developer"))
 async def dev_callback(client, cb):
-    buttons = [
-        [InlineKeyboardButton("🔰 ᴏᴡɴᴇʀ", user_id=config.OWNER_ID[0]), InlineKeyboardButton("📍 sᴜᴅᴏᴇʀs", url=f"https://t.me/{app.username}?start=sudo")],
-        [InlineKeyboardButton("🔙 ʙᴀᴄᴋ", callback_data="about")]
-    ]
-    await cb.message.edit_text("**👨‍💻 ᴅᴇᴠᴇʟᴏᴘᴇʀ ɪɴꜰᴏ**\n\nᴛʜɪs ʙᴏᴛ ɪs ᴄʀᴀꜰᴛᴇᴅ ᴡɪᴛʜ ❤️ ʙʏ THE-VIP-BOY.", reply_markup=InlineKeyboardMarkup(buttons))
-
-@app.on_callback_query(filters.regex("donate"))
-async def donate_callback(client, cb):
-    await cb.answer()
-    await cb.message.reply_photo(
-        photo=DONATE_LINK,
-        caption="**💎 sᴜᴘᴘᴏʀᴛ ᴏᴜʀ ᴊᴏᴜʀɴᴇʏ**\n\nʏᴏᴜʀ small contribution helps us keep the servers running.",
-        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🗑️ ᴄʟᴏsᴇ", callback_data="close")]])
-    )
-
-@app.on_callback_query(filters.regex("basic_guide"))
-async def guide_callback(client, cb):
-    await cb.message.edit_text(
-        f"**📘 ǫᴜɪᴄᴋ sᴛᴀʀᴛ ɢᴜɪᴅᴇ**\n\n1. Add me to your group.\n2. Promote me as admin.\n3. Use /play <song name> to start music.\n4. Use /help for more commands.",
-        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 ʙᴀᴄᴋ", callback_data="about")]])
-    )
+    buttons = [[InlineKeyboardButton("🔰 ᴏᴡɴᴇʀ", user_id=config.OWNER_ID[0]), InlineKeyboardButton("📍 sᴜᴅᴏᴇʀs", url=f"https://t.me/{app.username}?start=sudo")], [InlineKeyboardButton("🔙 ʙᴀᴄᴋ", callback_data="about")]]
+    await cb.message.edit_text("**👨‍💻 ᴅᴇᴠᴇʟᴏᴘᴇʀ ɪɴꜰᴏ**", reply_markup=InlineKeyboardMarkup(buttons))
 
 @app.on_callback_query(filters.regex("support"))
 async def support_callback(client, cb):
-    kb = [
-        [InlineKeyboardButton("⛅ ɢʀᴏᴜᴘ", url=config.SUPPORT_GROUP), InlineKeyboardButton("🎄 ᴄʜᴀɴɴᴇʟ", url=config.SUPPORT_CHANNEL)],
-        [InlineKeyboardButton("🏠 ʜᴏᴍᴇ", callback_data="go_to_start")]
-    ]
-    await cb.message.edit_text("**💬 sᴜᴘᴘᴏʀᴛ ᴄᴇɴᴛᴇʀ**\n\nꜰᴀᴄɪɴɢ ɪssᴜᴇs? Join our support group.", reply_markup=InlineKeyboardMarkup(kb))
+    kb = [[InlineKeyboardButton("⛅ ɢʀᴏᴜᴘ", url=config.SUPPORT_GROUP), InlineKeyboardButton("🎄 ᴄʜᴀɴɴᴇʟ", url=config.SUPPORT_CHANNEL)], [InlineKeyboardButton("🏠 ʜᴏᴍᴇ", callback_data="go_to_start")]]
+    await cb.message.edit_text("**💬 sᴜᴘᴘᴏʀᴛ ᴄᴇɴᴛᴇʀ**", reply_markup=InlineKeyboardMarkup(kb))
 
 # ==========================================
-# HOME BUTTON (go_to_start) HANDLER ADDED
+# DIRECT HOME (START) BUTTON HANDLER
 # ==========================================
 @app.on_callback_query(filters.regex("go_to_start") & ~BANNED_USERS)
 @languageCB
 async def go_to_start(client, cb: CallbackQuery, _):
+    # Main Start Pannel buttons layout load karein
+    out = start_pannel(_)
     try:
-        # Start panel buttons layout lekar aao
-        out = start_pannel(_)
-        # Check karo ki message photo hai ya text
+        # User ko wapis main start screen par bhejein (Edit karke)
         if cb.message.photo:
             await cb.message.edit_caption(
                 caption=_["start_2"].format(cb.from_user.mention, app.mention),
@@ -257,7 +206,16 @@ async def go_to_start(client, cb: CallbackQuery, _):
                 text=_["start_2"].format(cb.from_user.mention, app.mention),
                 reply_markup=InlineKeyboardMarkup(out),
             )
-    except Exception as e:
-        # Agar koi error aaye (Jaise message edit limit)
-        await cb.answer("Returning Home...")
-        # Optional: purana delete karke new start message bhej sakte ho
+    except:
+        # Backup: Agar edit kaam nahi kare toh purana delete karke naya bhejein
+        await cb.message.delete()
+        await cb.message.reply_text(
+            text=_["start_2"].format(cb.from_user.mention, app.mention),
+            reply_markup=InlineKeyboardMarkup(out),
+        )
+
+# Close handler
+@app.on_callback_query(filters.regex("close"))
+async def close_menu(_, cb):
+    await cb.message.delete()
+    await cb.answer("Menu Closed 🗑️")
