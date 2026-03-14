@@ -13,16 +13,15 @@ from math import ceil
 from typing import Union
 
 from pyrogram import Client, filters, types
-from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, CallbackQuery
+from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 import config
 from config import BANNED_USERS, START_IMG_URL
-from strings import get_command, get_string, helpers
+from strings import get_command, get_string
 from VIPMUSIC import HELPABLE, app
 from VIPMUSIC.utils.database import get_lang, is_commanddelete_on
-from VIPMUSIC.utils.decorators.language import LanguageStart, languageCB
+from VIPMUSIC.utils.decorators.language import LanguageStart
 from VIPMUSIC.utils.inline.help import private_help_panel
-from VIPMUSIC.utils.inline.start import start_pannel # <--- Important for Home Button
 
 ### Configurations
 HELP_COMMAND = get_command("HELP_COMMAND")
