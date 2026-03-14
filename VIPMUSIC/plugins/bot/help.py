@@ -126,7 +126,7 @@ async def help_button(client, query):
 
 # --- Dynamic Help Menu Handlers ---
 @app.on_callback_query(filters.regex(r"^(music|management|tools)_callback") & ~BANNED_USERS)
-@languageCB
+languageCB
 async def dynamic_help_cb(client, cb: CallbackQuery, _):
     data = cb.data.split()
     category = data[0].split("_")[0] 
