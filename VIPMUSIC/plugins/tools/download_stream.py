@@ -4,10 +4,10 @@ import time
 import wget
 from pyrogram import filters
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from pyrogram.errors import UserIsBlocked, PeerIdInvalid
 from yt_dlp import YoutubeDL
 
 from VIPMUSIC import app
-# Humne aapki naya YouTubeAPI class import kar liya
 from VIPMUSIC.platforms.Youtube import YouTubeAPI
 
 # Initialize YouTube API
@@ -15,100 +15,87 @@ YouTube = YouTubeAPI()
 
 # User trackers
 user_last_CallbackQuery_time = {}
-user_CallbackQuery_count = {}
-
-# Spam config
-SPAM_WINDOW_SECONDS = 30
 BANNED_USERS = []
+SPAM_WINDOW_SECONDS = 30
 
 @app.on_callback_query(filters.regex("downloadvideo") & ~filters.user(BANNED_USERS))
 async def download_video(client, CallbackQuery):
     user_id = CallbackQuery.from_user.id
     current_time = time.time()
 
-    last_Query_time = user_last_CallbackQuery_time.get(user_id, 0)
-    if current_time - last_Query_time < SPAM_WINDOW_SECONDS:
-        await CallbackQuery.answer(
-            "➻ ʏᴏᴜ ʜᴀᴠᴇ ʜᴀᴠᴇ ᴀʟʀᴇᴀᴅʏ ᴅᴏᴡɴʟᴏᴀᴅᴇᴅ ʏᴏᴜʀ ᴠɪᴅᴇᴏ.\n\n➥ ɴᴇxᴛ sᴏɴɢ ᴅᴏᴡɴʟᴏᴀᴅ ᴀғᴛᴇʀ 30 sᴇᴄᴏɴᴅs.",
-            show_alert=True,
-        )
-        return
+    # Spam Check
+    if current_time - user_last_CallbackQuery_time.get(user_id, 0) < SPAM_WINDOW_SECONDS:
+        return await CallbackQuery.answer("⏳ ᴘʟᴇᴀsᴇ ᴡᴀɪᴛ 30 ɪɴ sᴇᴄᴏɴᴅs!", show_alert=True)
     
+    videoid = CallbackQuery.data.split(None, 1)[1]
+    mention = CallbackQuery.from_user.mention
+
+    # --- STEP 1: DM CHECK ---
+    try:
+        check = await client.send_message(user_id, "✨ **ᴄʜᴇᴄᴋɪɴɢ ᴅᴍ ᴄᴏɴɴᴇᴄᴛɪᴏɴ...**")
+        await check.delete()
+    except (UserIsBlocked, PeerIdInvalid):
+        return await CallbackQuery.message.reply_text(
+            f"❌ **ʜᴇʏ {mention}, ᴀᴀᴘᴋᴀ ᴅᴍ ʙᴀɴᴅ ʜᴀɪ!**\n\nᴘᴇʜʟᴇ ɴɪᴄʜᴇ ᴅɪʏᴇ ɢᴀʏᴇ ʙᴜᴛᴛᴏɴ ᴘᴇ ᴄʟɪᴄᴋ ᴋᴀʀᴋᴇ ᴍᴜᴊʜᴇ **sᴛᴀʀᴛ** ᴋᴀʀᴏ, ᴘʜɪʀ ᴅᴏᴡɴʟᴏᴀᴅ ʜᴏɢᴀ.",
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("🚀 sᴛᴀʀᴛ ɪɴ ᴘᴍ", url=f"https://t.me/{app.username}?start=help")
+            ]])
+        )
+
     user_last_CallbackQuery_time[user_id] = current_time
-    callback_data = CallbackQuery.data.strip()
-    videoid = callback_data.split(None, 1)[1]
-    user_name = CallbackQuery.from_user.first_name
-    mention = f"[{user_name}](tg://user?id={user_id})"
 
-    await CallbackQuery.answer("ᴏᴋ sɪʀ ᴅᴏᴡɴʟᴏᴀᴅɪɴɢ ᴘʟᴇᴀsᴇ ᴡᴀɪᴛ...", show_alert=True)
-    pablo = await client.send_message(
-        CallbackQuery.message.chat.id,
-        f"**ʜᴇʏ {mention} ᴅᴏᴡɴʟᴏᴅɪɴɢ ʏᴏᴜʀ ᴠɪᴅᴇᴏ, ᴘʟᴇᴀsᴇ ᴡᴀɪᴛ...**",
-    )
-
-    # API V3 se details nikalna (No Cookies used here)
+    # --- STEP 2: GET DETAILS & SHOW LOADING IMAGE ---
     details = await YouTube.details(videoid, videoid=True)
     if not details:
-        await pablo.edit(f"**ʜᴇʏ {mention} ʏᴏᴜʀ sᴏɴɢ ɴᴏᴛ ғᴏᴜɴᴅ ᴏɴ ʏᴏᴜᴛᴜʙᴇ.**")
-        return
+        return await CallbackQuery.message.reply_text("❌ **ᴠɪᴅᴇᴏ ɴᴏᴛ ғᴏᴜɴᴅ!**")
 
     title, duration_min, duration_sec, thumbnail, vidid = details
     url = f"https://www.youtube.com/watch?v={vidid}"
-    
-    try:
-        sedlyf = wget.download(thumbnail)
-    except:
-        sedlyf = None
 
+    # Group mein loading image (thumbnail) bhejna
+    pablo = await client.send_photo(
+        CallbackQuery.message.chat.id,
+        photo=thumbnail,
+        caption=f"**✨ ɪᴍᴀɢɪɴɪɴɢ ʏᴏᴜʀ ᴠɪᴅᴇᴏ...**\n\n**📝 ᴛɪᴛʟᴇ:** `{title[:50]}...`"
+    )
+
+    # --- STEP 3: DOWNLOAD VIDEO ---
+    await pablo.edit_caption(f"**📥 ᴅᴏᴡɴʟᴏᴀᴅɪɴɢ ᴠɪᴅᴇᴏ...**\n\n**⏳ ᴅᴜʀᴀᴛɪᴏɴ:** `{duration_min}`")
+
+    if not os.path.exists("downloads"): os.makedirs("downloads")
+    file_path = f"downloads/{vidid}.mp4"
+    
     opts = {
         "format": "best",
-        "addmetadata": True,
-        "key": "FFmpegMetadata",
-        "prefer_ffmpeg": True,
-        "geo_bypass": True,
-        "nocheckcertificate": True,
-        "postprocessors": [{"key": "FFmpegVideoConvertor", "preferedformat": "mp4"}],
-        "outtmpl": "%(id)s.mp4",
-        "logtostderr": False,
+        "outtmpl": file_path,
         "quiet": True,
-        # Cookies removed from here
     }
 
     try:
         with YoutubeDL(opts) as ytdl:
-            ytdl_data = await asyncio.to_thread(ytdl.extract_info, url, download=True)
+            await asyncio.to_thread(ytdl.extract_info, url, download=True)
     except Exception as e:
-        await pablo.edit(f"**ғᴀɪʟᴇᴅ ᴛᴏ ᴅᴏᴡɴʟᴏᴀᴅ.**\n**ᴇʀʀᴏʀ:** `{str(e)}` ")
-        return
+        return await pablo.edit_caption(f"**❌ ᴅᴏᴡɴʟᴏᴀᴅ ᴇʀʀᴏʀ:** `{e}`")
 
-    file_stark = f"{ytdl_data['id']}.mp4"
-    capy = f"❄ **ᴛɪᴛʟᴇ :** [{title}]({url})\n\n🥀 **ʀᴇǫᴜᴇsᴛᴇᴅ ʙʏ :** {mention}"
-    
+    # --- STEP 4: UPLOAD VIDEO ---
+    await pablo.edit_caption(f"**📤 ᴜᴘʟᴏᴀᴅɪɴɢ ᴛᴏ ʏᴏᴜʀ ᴘᴍ...**\n\n**👤 ᴜsᴇʀ:** {mention}")
+
     try:
         await client.send_video(
-            CallbackQuery.from_user.id,
-            video=open(file_stark, "rb"),
+            user_id,
+            video=file_path,
             duration=duration_sec,
-            file_name=title,
-            thumb=sedlyf,
-            caption=capy,
+            caption=f"❄ **ᴛɪᴛʟᴇ :** [{title}]({url})\n\n🥀 **ʀᴇǫᴜᴇsᴛᴇᴅ ʙʏ :** {mention}",
+            thumb=None, # Thumbnail automatically handled by telegram usually
             supports_streaming=True,
         )
-        await client.send_message(
-            CallbackQuery.message.chat.id,
-            f"**ʜᴇʏ** {mention}\n**✅ ᴠɪᴅᴇᴏ sᴇɴᴛ ɪɴ ʏᴏᴜʀ ᴘᴍ/ᴅᴍ.**",
-        )
+        await pablo.edit_caption(f"**✅ ᴠɪᴅᴇᴏ sᴇɴᴛ sᴜᴄᴄᴇssғᴜʟʟʏ ɪɴ ᴘᴍ!**")
+        await asyncio.sleep(5)
         await pablo.delete()
     except Exception:
-        await pablo.delete()
-        await client.send_message(
-            CallbackQuery.message.chat.id,
-            f"**ʜᴇʏ {mention} ᴘʟᴇᴀsᴇ ᴜɴʙʟᴏᴄᴋ ᴍᴇ ɪɴ ᴘᴍ.**",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("👉 ᴜɴʙʟᴏᴄᴋ ᴍᴇ", url=f"https://t.me/{app.username}?start=info_{vidid}")]])
-        )
+        await pablo.edit_caption(f"**❌ ᴜᴘʟᴏᴀᴅ ғᴀɪʟᴇᴅ! ᴅᴍ ᴄʜᴇᴄᴋ ᴋᴀʀᴇɪɴ.**")
     finally:
-        if sedlyf and os.path.exists(sedlyf): os.remove(sedlyf)
-        if os.path.exists(file_stark): os.remove(file_stark)
+        if os.path.exists(file_path): os.remove(file_path)
 
 
 @app.on_callback_query(filters.regex("downloadaudio") & ~filters.user(BANNED_USERS))
@@ -116,69 +103,66 @@ async def download_audio(client, CallbackQuery):
     user_id = CallbackQuery.from_user.id
     current_time = time.time()
 
-    last_Query_time = user_last_CallbackQuery_time.get(user_id, 0)
-    if current_time - last_Query_time < SPAM_WINDOW_SECONDS:
-        await CallbackQuery.answer("➻ ɴᴇxᴛ sᴏɴɢ ᴅᴏᴡɴʟᴏᴀᴅ ᴀғᴛᴇʀ 30 sᴇᴄᴏɴᴅs.", show_alert=True)
-        return
+    if current_time - user_last_CallbackQuery_time.get(user_id, 0) < SPAM_WINDOW_SECONDS:
+        return await CallbackQuery.answer("⏳ Wait 30s!", show_alert=True)
+
+    videoid = CallbackQuery.data.split(None, 1)[1]
+    mention = CallbackQuery.from_user.mention
+
+    # --- DM CHECK ---
+    try:
+        check = await client.send_message(user_id, "✨ **ᴄʜᴇᴄᴋɪɴɢ ᴄᴏɴɴᴇᴄᴛɪᴏɴ...**")
+        await check.delete()
+    except (UserIsBlocked, PeerIdInvalid):
+        return await CallbackQuery.message.reply_text(
+            f"❌ **ʜᴇʏ {mention}, ᴘʟᴇᴀsᴇ sᴛᴀʀᴛ ᴍᴇ ɪɴ ᴘᴍ.**",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🚀 sᴛᴀʀᴛ", url=f"https://t.me/{app.username}?start=help")]])
+        )
 
     user_last_CallbackQuery_time[user_id] = current_time
-    callback_data = CallbackQuery.data.strip()
-    videoid = callback_data.split(None, 1)[1]
-    user_name = CallbackQuery.from_user.first_name
-    mention = f"[{user_name}](tg://user?id={user_id})"
 
-    await CallbackQuery.answer("ᴏᴋ sɪʀ ᴅᴏᴡɴʟᴏᴀᴅɪɴɢ ᴀᴜᴅɪᴏ...", show_alert=True)
-    pablo = await client.send_message(CallbackQuery.message.chat.id, f"**ʜᴇʏ {mention} ᴅᴏᴡɴʟᴏᴀᴅɪɴɢ ᴀᴜᴅɪᴏ...**")
-
-    # API V3 Details
     details = await YouTube.details(videoid, videoid=True)
-    if not details:
-        await pablo.edit(f"**ʜᴇʏ {mention} sᴏɴɢ ɴᴏᴛ ғᴏᴜɴᴅ.**")
-        return
+    if not details: return
 
     title, duration_min, duration_sec, thumbnail, vidid = details
     url = f"https://www.youtube.com/watch?v={vidid}"
-    
-    try:
-        sedlyf = wget.download(thumbnail)
-    except:
-        sedlyf = None
 
+    # Loading Image for Audio
+    pablo = await client.send_photo(
+        CallbackQuery.message.chat.id,
+        photo=thumbnail,
+        caption=f"**🎵 ɪᴍᴀɢɪɴɪɴɢ ʏᴏᴜʀ ᴀᴜᴅɪᴏ...**"
+    )
+
+    await pablo.edit_caption(f"**📥 ᴅᴏᴡɴʟᴏᴀᴅɪɴɢ ᴀᴜᴅɪᴏ...**\n\n**📝 ᴛɪᴛʟᴇ:** `{title[:50]}...`")
+
+    file_path = f"downloads/{vidid}.mp3"
     opts = {
         "format": "bestaudio/best",
-        "addmetadata": True,
-        "key": "FFmpegMetadata",
-        "prefer_ffmpeg": True,
-        "geo_bypass": True,
-        "nocheckcertificate": True,
-        "outtmpl": "%(id)s.mp3",
+        "outtmpl": file_path,
         "quiet": True,
-        # Cookies removed
     }
 
     try:
         with YoutubeDL(opts) as ytdl:
-            ytdl_data = await asyncio.to_thread(ytdl.extract_info, url, download=True)
+            await asyncio.to_thread(ytdl.extract_info, url, download=True)
     except Exception as e:
-        await pablo.edit(f"**ғᴀɪʟᴇᴅ.** \n`{str(e)}`")
-        return
+        return await pablo.edit_caption(f"**❌ ᴇʀʀᴏʀ:** `{e}`")
 
-    file_stark = f"{ytdl_data['id']}.mp3"
-    capy = f"❄ **ᴛɪᴛʟᴇ :** [{title}]({url})\n🥀 **ʀᴇǫᴜᴇsᴛᴇᴅ ʙʏ :** {mention}\n⏳ **ᴅᴜʀᴀᴛɪᴏɴ :** {duration_min}"
+    await pablo.edit_caption(f"**📤 ᴜᴘʟᴏᴀᴅɪɴɢ ᴀᴜᴅɪᴏ...**")
 
     try:
         await client.send_audio(
-            CallbackQuery.from_user.id,
-            audio=open(file_stark, "rb"),
+            user_id,
+            audio=file_path,
             title=title,
-            thumb=sedlyf,
-            caption=capy,
+            duration=duration_sec,
+            caption=f"❄ **ᴛɪᴛʟᴇ :** [{title}]({url})\n🥀 **ʀᴇǫᴜᴇsᴛᴇᴅ ʙʏ :** {mention}",
         )
-        await client.send_message(CallbackQuery.message.chat.id, f"**ʜᴇʏ {mention} ✅ ᴀᴜᴅɪᴏ sᴇɴᴛ ɪɴ ᴘᴍ.**")
+        await pablo.edit_caption(f"**✅ ᴀᴜᴅɪᴏ sᴇɴᴛ ɪɴ ᴘᴍ!**")
+        await asyncio.sleep(5)
         await pablo.delete()
     except Exception:
-        await pablo.delete()
-        await client.send_message(CallbackQuery.message.chat.id, f"**ʜᴇʏ {mention} ᴘʟᴇᴀsᴇ ᴜɴʙʟᴏᴄᴋ ᴍᴇ.**")
+        await pablo.edit_caption(f"**❌ ᴜᴘʟᴏᴀᴅ ғᴀɪʟᴇᴅ.**")
     finally:
-        if sedlyf and os.path.exists(sedlyf): os.remove(sedlyf)
-        if os.path.exists(file_stark): os.remove(file_stark)
+        if os.path.exists(file_path): os.remove(file_path)
