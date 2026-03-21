@@ -1,49 +1,43 @@
 import asyncio
 import json
 import os
+import uvloop
 
-# --- STEP 1: FIX EVENT LOOP ---
-try:
-    import uvloop
-    uvloop.install()
-except ImportError:
-    pass
-
-# Create and set the event loop manually for Python 3.10+
+# --- सबसे पहले Event Loop को सेटअप करें ---
+uvloop.install()
 try:
     loop = asyncio.get_event_loop()
 except RuntimeError:
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-# ------------------------------
+# ---------------------------------------
 
-# FIRST: Import logging
+# अब बाकी के Imports करें
 from .logging import logger, LOGGER
 
-# SECOND: Setup directories and environment
 from VIPMUSIC.core.dir import dirr
 from VIPMUSIC.core.git import git
 from VIPMUSIC.misc import dbb, heroku, sudo
 
+# Directories और Setup
 dirr()
 git()
 dbb()
 heroku()
 sudo()
 
-# THIRD: Import core components
+# Core Components को Import करें
 from VIPMUSIC.core.bot import VIPBot
 from VIPMUSIC.core.userbot import Userbot
 from VIPMUSIC.core.youtube import vipboy
 
 vipboy()
 
-# FOURTH: Initialize the Bot Clients
-# (Now the loop exists, so this won't crash)
+# अब Bots को Initialize करें (अब एरर नहीं आएगा)
 app = VIPBot()
 userbot = Userbot()
 
-# FIFTH: Initialize Platforms
+# Platforms Setup
 from .platforms import *
 
 YouTube = YouTubeAPI()
