@@ -1,4 +1,3 @@
- 
 #
 # Copyright (C) 2024 by THE-VIP-BOY-OP@Github, < https://github.com/THE-VIP-BOY-OP >.
 #
@@ -8,36 +7,39 @@
 #
 # All rights reserved.
 
-from VIPMUSIC.core.bot import VIPBot
-from VIPMUSIC.core.dir import dirr
-from VIPMUSIC.core.git import git
-from VIPMUSIC.core.userbot import Userbot
-from VIPMUSIC.misc import dbb, heroku, sudo
-
+# 1. सबसे पहले Logger को लोड करें ताकि बाकी मॉड्यूल्स इसे इस्तेमाल कर सकें
 from .logging import LOGGER
 
-# Bot Client
+# कई फाइलें 'logger' (small letters) ढूंढती हैं, इसलिए यह जरूरी है
+logger = LOGGER 
 
-# Directories
+# 2. HELPABLE डिक्शनरी को शुरू में ही डिफाइन करें
+HELPABLE = {}
+
+# 3. बेसिक सेटअप फंक्शन्स लोड करें
+from VIPMUSIC.core.dir import dirr
+from VIPMUSIC.core.git import git
+from VIPMUSIC.misc import dbb, heroku, sudo
+
+# Directories सेटअप
 dirr()
 
-# Check Git Updates
+# Git अपडेट चेक करें
 git()
 
-# Initialize Memory DB
+# DB और Heroku सेटअप
 dbb()
-
-# Heroku APP
 heroku()
-
-# Load Sudo Users from DB
 sudo()
 
-app = VIPBot()
+# 4. अब Bot और Userbot को लोड करें (Logger के बाद)
+from VIPMUSIC.core.bot import VIPBot
+from VIPMUSIC.core.userbot import Userbot
 
-# Assistant Client
+app = VIPBot()
 userbot = Userbot()
 
+# 5. सबसे आखिर में Platforms लोड करें
 from .platforms import *
 
 YouTube = YouTubeAPI()
@@ -47,4 +49,3 @@ Apple = AppleAPI()
 Resso = RessoAPI()
 SoundCloud = SoundAPI()
 Telegram = TeleAPI()
-HELPABLE = {}
