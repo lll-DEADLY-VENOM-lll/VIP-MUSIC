@@ -1,45 +1,41 @@
-#
-# Copyright (C) 2024 by THE-VIP-BOY-OP@Github, < https://github.com/THE-VIP-BOY-OP >.
-#
-# This file is part of < https://github.com/THE-VIP-BOY-OP/VIP-MUSIC > project,
-# and is released under the MIT License.
-# Please see < https://github.com/THE-VIP-BOY-OP/VIP-MUSIC/blob/master/LICENSE >
-#
-# All rights reserved.
+import asyncio
+import uvloop
 
-# 1. सबसे पहले Logger को लोड करें ताकि बाकी मॉड्यूल्स इसे इस्तेमाल कर सकें
+# 1. सबसे पहले uvloop को इनस्टॉल करें और Event Loop सेट करें
+uvloop.install()
+
+try:
+    loop = asyncio.get_event_loop()
+except RuntimeError:
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
+# 2. अब Logger लोड करें
 from .logging import LOGGER
-
-# कई फाइलें 'logger' (small letters) ढूंढती हैं, इसलिए यह जरूरी है
 logger = LOGGER 
 
-# 2. HELPABLE डिक्शनरी को शुरू में ही डिफाइन करें
+# 3. HELPABLE डिक्शनरी
 HELPABLE = {}
 
-# 3. बेसिक सेटअप फंक्शन्स लोड करें
+# 4. बेसिक सेटअप फंक्शन्स
 from VIPMUSIC.core.dir import dirr
 from VIPMUSIC.core.git import git
 from VIPMUSIC.misc import dbb, heroku, sudo
 
-# Directories सेटअप
 dirr()
-
-# Git अपडेट चेक करें
 git()
-
-# DB और Heroku सेटअप
 dbb()
 heroku()
 sudo()
 
-# 4. अब Bot और Userbot को लोड करें (Logger के बाद)
+# 5. अब Bot और Userbot लोड करें
 from VIPMUSIC.core.bot import VIPBot
 from VIPMUSIC.core.userbot import Userbot
 
 app = VIPBot()
 userbot = Userbot()
 
-# 5. सबसे आखिर में Platforms लोड करें
+# 6. Platforms लोड करें
 from .platforms import *
 
 YouTube = YouTubeAPI()
