@@ -4,11 +4,11 @@
 import asyncio
 import threading
 import uvloop
-import logging
+import pyrogram # <--- Yeh zaroori tha
 from flask import Flask
 from pyrogram import Client, idle
 from pyrogram.enums import ChatMemberStatus
-from pyrogram.errors import ChatWriteForbidden, PeerIdInvalid
+from pyrogram.errors import ChatWriteForbidden, PeerIdInvalid # <--- Errors import kiye
 from pyrogram.types import (
     BotCommand,
     BotCommandScopeAllChatAdministrators,
@@ -19,13 +19,7 @@ from pyrogram.types import (
 )
 
 import config
-
-# सर्कुलर इम्पोर्ट से बचने के लिए सीधा Logging सेटअप
-logging.basicConfig(
-    level=logging.INFO,
-    format="[%(asctime)s - %(levelname)s] - %(name)s - %(message)s",
-)
-LOGGER = logging.getLogger("VIPMUSIC")
+from ..logging import LOGGER
 
 uvloop.install()
 
@@ -36,18 +30,16 @@ def home():
     return "Bot is running"
 
 def run():
-    # Flask server on port 8000
     app.run(host="0.0.0.0", port=8000, debug=False)
 
 class VIPBot(Client):
     def __init__(self):
-        LOGGER.info("Starting Bot...")
+        LOGGER(__name__).info("Starting Bot")
         super().__init__(
             "VIPMUSIC",
             api_id=config.API_ID,
             api_hash=config.API_HASH,
             bot_token=config.BOT_TOKEN,
-            ipv6=False, # IPv4 सुनिश्चित करने के लिए
         )
 
     async def start(self):
@@ -64,7 +56,7 @@ class VIPBot(Client):
 
         if config.LOG_GROUP_ID:
             try:
-                # ID ko integer mein convert karna zaroori hai
+                # ID ko number (int) mein badalna zaroori hai
                 LOGGER_ID = int(config.LOG_GROUP_ID)
                 
                 await self.send_photo(
@@ -73,14 +65,14 @@ class VIPBot(Client):
                     caption=f"╔════❰𝐖𝐄𝐋𝐂𝐎𝐌𝐄❱════❍⊱❁۪۪\n║\n║┣⪼🥀𝐁𝐨𝐭 𝐒𝐭𝐚𝐫𝐭𝐞𝐝 𝐁𝐚𝐛𝐲🎉\n║\n║┣⪼ {self.name}\n║\n║┣⪼🎈𝐈𝐃:- `{self.id}` \n║\n║┣⪼🎄@{self.username} \n║ \n║┣⪼💖𝐓𝐡𝐚𝐧𝐤𝐬 𝐅𝐨𝐫 𝐔𝐬𝐢𝐧𝐠😍\n║\n╚════════════════❍⊱❁",
                     reply_markup=button,
                 )
-            except (PeerIdInvalid, ValueError):
-                LOGGER.error("Log Group Error: LOG_GROUP_ID invalid hai ya bot admin nahi hai!")
+            except PeerIdInvalid:
+                LOGGER(__name__).error("Log Group Error: Bot ko log group mein admin banayein aur wahan /start likhein!")
             except ChatWriteForbidden:
-                LOGGER.error("Log Group Error: Bot ke paas log group mein message bhejne ki permission nahi hai!")
+                LOGGER(__name__).error("Log Group Error: Bot ke paas message bhejne ki permission nahi hai!")
             except Exception as e:
-                LOGGER.error(f"Unexpected Log Group Error: {e}")
+                LOGGER(__name__).error(f"Unexpected Log Group Error: {e}")
         else:
-            LOGGER.warning("LOG_GROUP_ID set nahi hai, startup message skip kar diya.")
+            LOGGER(__name__).warning("LOG_GROUP_ID set nahi hai, startup message skip kar diya.")
 
         if config.SET_CMDS:
             try:
@@ -102,10 +94,11 @@ class VIPBot(Client):
                     ],
                     scope=BotCommandScopeAllGroupChats(),
                 )
+                # ... Baki commands aapne jo likhe the wo yahan rahenge ...
             except Exception as e:
-                LOGGER.error(f"Failed to set bot commands: {e}")
+                LOGGER(__name__).error(f"Failed to set bot commands: {e}")
 
-        LOGGER.info(f"MusicBot Started as {self.name}")
+        LOGGER(__name__).info(f"MusicBot Started as {self.name}")
 
 async def anony_boot():
     bot = VIPBot()
@@ -113,11 +106,7 @@ async def anony_boot():
     await idle()
 
 if __name__ == "__main__":
-    # Flask ko separate thread mein chalana taki bot block na ho
     t = threading.Thread(target=run)
     t.daemon = True
     t.start()
-    
-    # Pyrogram Bot start karna
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(anony_boot())
+    asyncio.run(anony_boot())
