@@ -1,24 +1,21 @@
 from pyrogram.types import InlineKeyboardButton
-
 import config
-from config import SUPPORT_GROUP
 from VIPMUSIC import app
 
 
-def start_pannel(_):
+def start_panel(_):
     buttons = [
         [
             InlineKeyboardButton(
-                text="⌁ Add To Group ⌁",
+                text=_["S_B_1"],
                 url=f"https://t.me/{app.username}?startgroup=true",
             )
         ],
         [
-            InlineKeyboardButton("⧉ Commands", callback_data="settings_back_helper"),
-            InlineKeyboardButton("⧉ Settings", callback_data="settings_helper"),
-        ],
-        [
-            InlineKeyboardButton("⌁ Support ⌁", url=config.SUPPORT_GROUP),
+            InlineKeyboardButton(
+                text=_["S_B_2"],
+                url=config.SUPPORT_CHAT,
+            ),
         ],
     ]
     return buttons
@@ -28,51 +25,29 @@ def private_panel(_):
     buttons = [
         [
             InlineKeyboardButton(
-                text="⌁ Invite ⌁",
+                text=_["S_B_3"],
                 url=f"https://t.me/{app.username}?startgroup=true",
-            )
+            ),
         ],
         [
-            InlineKeyboardButton("⧉ Group", url=config.SUPPORT_GROUP),
-            InlineKeyboardButton("⧉ Channel", url=config.SUPPORT_CHANNEL),
+            InlineKeyboardButton(text=_["S_B_5"], user_id=config.OWNER_ID),
+            InlineKeyboardButton(text="ɪɴғᴏ 皿", callback_data="api_status"),
         ],
-        [
-            InlineKeyboardButton("⌁ Features ⌁", callback_data="settings_back_helper")
-        ],
-    ]
-    return buttons
-
-
-def alive_panel(_):
-    buttons = [
         [
             InlineKeyboardButton(
-                text="⌁ Add ⌁",
-                url=f"https://t.me/{app.username}?startgroup=true"
+                text=_["S_B_2"],
+                url=config.SUPPORT_CHAT,
             ),
             InlineKeyboardButton(
-                text="⌁ Support ⌁",
-                url=f"{SUPPORT_GROUP}"
+                text=_["S_B_6"],
+                url=config.SUPPORT_CHANNEL,
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                text=_["S_B_4"],
+                callback_data="settings_back_helper",
             ),
         ],
     ]
-    return buttons
-
-
-def music_start_panel(_):
-    buttons = [
-        [
-            InlineKeyboardButton(
-                text="⌁ Start Bot ⌁",
-                url=f"https://t.me/{app.username}?startgroup=true",
-            )
-        ],
-        [
-            InlineKeyboardButton("⧉ About", callback_data="about"),
-            InlineKeyboardButton("⧉ Support", callback_data="support"),
-        ],
-        [
-            InlineKeyboardButton("⌁ Features ⌁", callback_data="feature")
-        ],
-    ]
-    return buttons
+    return butt
