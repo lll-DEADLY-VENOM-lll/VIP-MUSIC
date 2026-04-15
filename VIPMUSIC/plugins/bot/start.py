@@ -20,8 +20,8 @@ from VIPMUSIC.utils.database import (
 )
 from VIPMUSIC.utils.decorators.language import LanguageStart
 from VIPMUSIC.utils.formatters import get_readable_time
-# FIXED IMPORTS: Removed music_start_panel (causing error) and added missing ones
-from VIPMUSIC.utils.inline import help_pannel, private_panel, start_panel
+# FIXED: Spelling corrected from 'pannel' to 'panel'
+from VIPMUSIC.utils.inline import help_panel, private_panel, start_panel
 from config import BANNED_USERS
 from strings import get_string
 
@@ -72,7 +72,8 @@ async def start_pm(client, message: Message, _):
         name = message.text.split(None, 1)[1]
 
         if name.startswith("help"):
-            keyboard = help_pannel(_)
+            # FIXED: help_panel
+            keyboard = help_panel(_)
             return await message.reply_photo(
                 photo=random.choice(Kanha),  
                 caption=_["help_1"].format(config.SUPPORT_CHAT),
@@ -90,7 +91,6 @@ async def start_pm(client, message: Message, _):
                 )
             return
 
-        # Track info logic fixed
         if name.startswith("inf"):
             m = await message.reply_text("🔎 Searching...")
             query = name.replace("info_", "", 1)
@@ -140,6 +140,7 @@ async def start_pm(client, message: Message, _):
             return
 
     # 🌄 Normal Start
+    # FIXED: private_panel
     out = private_panel(_)
 
     await message.reply_photo(
@@ -166,6 +167,7 @@ async def start_pm(client, message: Message, _):
 @app.on_message(filters.command(["start"]) & filters.group & ~BANNED_USERS)
 @LanguageStart
 async def start_gp(client, message: Message, _):
+    # FIXED: start_panel
     out = start_panel(_)
     uptime = int(time.time() - _boot_)
 
@@ -211,6 +213,7 @@ async def welcome(client, message: Message):
                     )
                     return await app.leave_chat(message.chat.id)
 
+                # FIXED: start_panel
                 out = start_panel(_)
 
                 await message.reply_photo(
