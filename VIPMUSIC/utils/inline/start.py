@@ -2,7 +2,7 @@ from pyrogram.types import InlineKeyboardButton
 import config
 from VIPMUSIC import app
 
-def start_panel(_):
+def start_pannel(_):
     buttons = [
         [
             InlineKeyboardButton(
@@ -18,6 +18,9 @@ def start_panel(_):
         ],
     ]
     return buttons
+
+# Kuch files mein single 'n' use hota hai, isliye dono define kar diye hain
+start_panel = start_pannel
 
 def private_panel(_):
     buttons = [
