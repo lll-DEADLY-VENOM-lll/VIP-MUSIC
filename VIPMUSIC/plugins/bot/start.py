@@ -20,7 +20,8 @@ from VIPMUSIC.utils.database import (
 )
 from VIPMUSIC.utils.decorators.language import LanguageStart
 from VIPMUSIC.utils.formatters import get_readable_time
-from VIPMUSIC.utils.inline import alive_panel, music_start_panel, start_pannel
+# FIXED IMPORTS: Removed music_start_panel (causing error) and added missing ones
+from VIPMUSIC.utils.inline import help_pannel, private_panel, start_panel
 from config import BANNED_USERS
 from strings import get_string
 
@@ -49,7 +50,7 @@ Kanha = [
     "https://files.catbox.moe/vbgrx1.jpg"
 ]
 
-# 🍓 Random Reactions — strawberry + 4 extras, changes every start
+# 🍓 Random Reactions
 REACTIONS = ["🍓", "🔥", "❤️", "⚡", "🎉", "🥰", "👏", "💫", "🎶", "🌟", "💩", "👍", "👎"]
 
 
@@ -61,7 +62,7 @@ REACTIONS = ["🍓", "🔥", "❤️", "⚡", "🎉", "🥰", "👏", "💫", "�
 async def start_pm(client, message: Message, _):
     await add_served_user(message.from_user.id)
 
-    # 🍓 Random reaction — har baar alag
+    # 🍓 Random reaction
     try:
         await message.react(random.choice(REACTIONS), big=True)
     except Exception:
@@ -70,16 +71,14 @@ async def start_pm(client, message: Message, _):
     if len(message.text.split()) > 1:
         name = message.text.split(None, 1)[1]
 
-        
         if name.startswith("help"):
             keyboard = help_pannel(_)
             return await message.reply_photo(
-                        photo=random.choice(Kanha),  
+                photo=random.choice(Kanha),  
                 caption=_["help_1"].format(config.SUPPORT_CHAT),
                 reply_markup=keyboard,
             )
 
-        
         if name.startswith("sud"):
             await sudoers_list(client=client, message=message, _=_)
             if await is_on_off(2):
@@ -91,14 +90,13 @@ async def start_pm(client, message: Message, _):
                 )
             return
 
-        # Track info
+        # Track info logic fixed
         if name.startswith("inf"):
             m = await message.reply_text("🔎 Searching...")
             query = name.replace("info_", "", 1)
-            query = f"https://www.youtube.com/watch?v={query}"
-
             results = VideosSearch(query, limit=1)
-            data = (await results.next())["result"][0]
+            res = await results.next()
+            data = res["result"][0]
 
             title = data["title"]
             duration = data["duration"]
@@ -145,10 +143,10 @@ async def start_pm(client, message: Message, _):
     out = private_panel(_)
 
     await message.reply_photo(
-        photo=random.choice(Kanha),  # ✅ RANDOM IMAGE FIXED
+        photo=random.choice(Kanha),
         has_spoiler=True,
         protect_content=True,
-       message_effect_id=random.choice(EFFECT_ID),
+        message_effect_id=random.choice(EFFECT_ID),
         caption=_["start_2"].format(message.from_user.mention, app.mention),
         reply_markup=InlineKeyboardMarkup(out),
     )
@@ -191,14 +189,12 @@ async def welcome(client, message: Message):
             language = await get_lang(message.chat.id)
             _ = get_string(language)
 
-            # Ban banned users
             if await is_banned_user(member.id):
                 try:
                     await message.chat.ban_member(member.id)
                 except:
                     pass
 
-            # Bot added
             if member.id == app.id:
                 if message.chat.type != ChatType.SUPERGROUP:
                     await message.reply_text(_["start_4"])
