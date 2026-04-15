@@ -36,20 +36,18 @@ from VIPMUSIC.utils.database import (
 from VIPMUSIC.utils.decorators.language import LanguageStart
 from VIPMUSIC.utils.formatters import get_readable_time
 from VIPMUSIC.utils.functions import MARKDOWN, WELCOMEHELP
-from VIPMUSIC.utils.inline import alive_panel, private_panel, start_pannel
+from VIPMUSIC.utils.inline import alive_panel, private_panel, start_panel
 
 from .help import paginate_modules
 
 # ---------------- CUSTOM DATA ---------------- #
 
-# 🎆 Random Message Effects (Premium Effects)
 EFFECT_ID = [
     5104841245755180586, 5107584321108051014, 5104841245755180586,
     5107584321108051014, 5104841245755180586, 5107584321108051014,
     5104841245755180586, 5107584321108051014,
 ]
 
-# 🌄 Random Start Images (Kanha)
 Kanha = [
     "https://files.catbox.moe/v00l7e.jpg",
     "https://files.catbox.moe/uow54p.jpg",
@@ -62,7 +60,6 @@ Kanha = [
     "https://files.catbox.moe/vbgrx1.jpg"
 ]
 
-# 🍓 Random Reactions
 REACTIONS = ["🍓", "🔥", "❤️", "⚡", "🎉", "🥰", "👏", "💫", "🎶", "🌟", "💩", "👍", "👎"]
 
 # ---------------------------------------------- #
@@ -101,13 +98,11 @@ async def ban_new(client, message):
 async def start_comm(client, message: Message, _):
     await add_served_user(message.from_user.id)
     
-    # 1. ADD RANDOM REACTION
     try:
         await message.react(random.choice(REACTIONS))
     except:
         pass
     
-    # 2. HANDLE DEEP LINKS
     if len(message.text.split()) > 1:
         name = message.text.split(None, 1)[1]
         
@@ -161,19 +156,6 @@ async def start_comm(client, message: Message, _):
             await sudoers_list(client=client, message=message, _=_)
             return
 
-        if name[0:3] == "inf":
-            m = await message.reply_text("🔎 Fetching video info...")
-            query = (str(name)).replace("info_", "", 1)
-            results = VideosSearch(f"https://www.youtube.com/watch?v={query}", limit=1)
-            for result in (await results.next())["result"]:
-                title, duration, views = result["title"], result["duration"], result["viewCount"]["short"]
-                thumbnail, link = result["thumbnails"][0]["url"].split("?")[0], result["link"]
-            key = InlineKeyboardMarkup([[InlineKeyboardButton("🎥 Watch", url=link), InlineKeyboardButton("🔄 Close", callback_data="close")]])
-            await m.delete()
-            await app.send_photo(message.chat.id, photo=thumbnail, caption=f"🔍 **Video Info**\n\n📌 **Title:** {title}\n⏳ **Duration:** {duration}", reply_markup=key)
-            return
-
-    # 3. MAIN START MESSAGE WITH RANDOM IMAGE AND EFFECT
     out = private_panel(_)
     try:
         await message.reply_photo(
@@ -189,15 +171,11 @@ async def start_comm(client, message: Message, _):
             reply_markup=InlineKeyboardMarkup(out)
         )
 
-    # Log activity
     if await is_on_off(config.LOG):
         log_id = get_log_id()
         if log_id:
             try:
-                await app.send_message(
-                    log_id,
-                    f"👤 {message.from_user.mention} has started the bot.\n**User ID:** `{message.from_user.id}`"
-                )
+                await app.send_message(log_id, f"👤 {message.from_user.mention} started the bot.")
             except:
                 pass
 
@@ -217,7 +195,6 @@ async def testbot(client, message: Message, _):
 async def welcome(client, message: Message):
     chat_id = message.chat.id
     if config.PRIVATE_BOT_MODE == str(True) and not await is_served_private_chat(chat_id):
-        await message.reply_text("This bot is in Private Mode. Only authorized chats can use it.")
         return await app.leave_chat(chat_id)
     
     await add_served_chat(chat_id)
@@ -234,7 +211,7 @@ async def welcome(client, message: Message):
                     return await app.leave_chat(chat_id)
                 
                 userbot = await get_assistant(chat_id)
-                await message.reply_text(_["start_2"].format(app.mention, userbot.username, userbot.id), reply_markup=InlineKeyboardMarkup(start_pannel(_)))
+                await message.reply_text(_["start_2"].format(app.mention, userbot.username, userbot.id), reply_markup=InlineKeyboardMarkup(start_panel(_)))
             
             if member.id in config.OWNER_ID:
                 await message.reply_text(_["start_3"].format(app.mention, member.mention))
