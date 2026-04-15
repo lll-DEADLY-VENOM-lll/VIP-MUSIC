@@ -1,7 +1,8 @@
-from pyrogram.types import InlineKeyboardButton
-import config
-from VIPMUSIC import app
+ from pyrogram.types import InlineKeyboardButton
 
+import config
+from config import SUPPORT_GROUP
+from VIPMUSIC import app
 
 def start_panel(_):
     buttons = [
