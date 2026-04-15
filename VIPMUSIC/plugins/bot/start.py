@@ -20,7 +20,7 @@ from VIPMUSIC.utils.database import (
 )
 from VIPMUSIC.utils.decorators.language import LanguageStart
 from VIPMUSIC.utils.formatters import get_readable_time
-from VIPMUSIC.utils.inline import help_pannel, private_panel, start_panel
+from VIPMUSIC.utils.inline import alive_panel, music_start_panel, start_pannel
 from config import BANNED_USERS
 from strings import get_string
 
