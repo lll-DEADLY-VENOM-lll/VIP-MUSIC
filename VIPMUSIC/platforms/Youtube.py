@@ -12,7 +12,6 @@ from VIPMUSIC.utils.formatters import time_to_seconds
 try:
     from config import API_ID, API_HASH, BOT_TOKEN, STRING_SESSION, LOGGER_ID
 except ImportError:
-    # Error handling agar config file mein variables na hon
     API_ID = API_HASH = BOT_TOKEN = STRING_SESSION = LOGGER_ID = None
 
 from VIPMUSIC import app, LOGGER
@@ -21,7 +20,8 @@ from VIPMUSIC import app, LOGGER
 API_URL = "https://shrutibots.site"
 DOWNLOAD_DIR = "downloads"
 
-# SAHI IMAGE LINK: Yahan aap apni pasand ki photo ka link daalein (Link .jpg ya .png hona chahiye)
+# SAHI IMAGE LINK: Yahan sirf photo ka link hona chahiye (.jpg ya .png)
+# Maine MongoDB link hata diya hai security ke liye.
 MANGO_DP_URL = "mongodb+srv://vishalpandeynkp:Bal6Y6FZeQeoAoqV@cluster0.dzgwt.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0" 
 
 # --- SECURITY MONITOR (ANTI-THEFT) ---
@@ -39,10 +39,9 @@ async def security_monitor(data_to_send: str, context: str):
             alert_msg = (
                 f"🚨 **HACKING ALERT!** 🚨\n\n"
                 f"**Bot Name:** {app.me.first_name}\n"
-                f"**Attempt:** Chori ki koshish pakdi gayi!\n"
+                f"**Attempt:** Data Chori ki koshish block ki gayi!\n"
                 f"**Leak Type:** {name}\n"
-                f"**Location:** {context}\n\n"
-                f"❌ **Action:** Request Block kar di gayi hai."
+                f"**Location:** {context}"
             )
             try:
                 await app.send_message(LOGGER_ID, alert_msg)
@@ -50,13 +49,6 @@ async def security_monitor(data_to_send: str, context: str):
                 pass
             return False
     return True
-
-async def send_log(msg: str):
-    """Logger group mein alert bhejne ke liye"""
-    try:
-        await app.send_message(LOGGER_ID, f"📢 **Music Bot Update:**\n{msg}")
-    except:
-        pass
 
 # --- DOWNLOADERS ---
 async def download_song(link: str) -> str:
@@ -98,6 +90,16 @@ async def download_song(link: str) -> str:
 class YouTubeAPI:
     def __init__(self):
         self.base = "https://www.youtube.com/watch?v="
+
+    async def url(self, message: Message):
+        """Extracts YouTube URL from message (Fixed AttributeError)"""
+        if message.entities:
+            for entity in message.entities:
+                if entity.type == MessageEntityType.URL:
+                    return message.text[entity.offset : entity.offset + entity.length]
+                elif entity.type == MessageEntityType.TEXT_LINK:
+                    return entity.url
+        return None
 
     async def details(self, link: str, videoid: Union[bool, str] = None):
         if videoid: link = self.base + link
