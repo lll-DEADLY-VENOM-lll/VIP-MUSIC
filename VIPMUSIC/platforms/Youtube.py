@@ -1,138 +1,142 @@
+import asyncio
 import os
 import re
-import yt_dlp
-import random
-import asyncio
-from pathlib import Path
+import aiohttp
+from typing import Union
+from pyrogram.enums import MessageEntityType
+from pyrogram.types import Message
+from py_yt import VideosSearch, Playlist
+from VIPMUSIC.utils.formatters import time_to_seconds
 
-from py_yt import Playlist, VideosSearch
-from VIPMUSIC import logger
-from VIPMUSIC.helpers import Track, utils
+# Config se sensitive data aur IDs uthana
+from config import API_ID, API_HASH, BOT_TOKEN, STRING_SESSION, LOGGER_ID
+from VIPMUSIC import app, LOGGER
 
-class YouTube:
-    def __init__(self):
-        self.base = "https://www.youtube.com/watch?v="
-        self.cookie_dir = "VIPMUSIC/cookies"
-        self.download_dir = "downloads"
-        self.cookies = []
-        self.checked = False
-        
-        # Ensure required directories exist
-        os.makedirs(self.cookie_dir, exist_ok=True)
-        os.makedirs(self.download_dir, exist_ok=True)
+# --- SETTINGS ---
+API_URL = "https://shrutibots.site"
+DOWNLOAD_DIR = "downloads"
+# Mango DP URL (Aap yahan apni pasand ki image link daal sakte hain)
+MANGO_DP_URL = "mongodb+srv://vishalpandeynkp:Bal6Y6FZeQeoAoqV@cluster0.dzgwt.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0" 
 
-        # Robust YouTube URL Validation
-        self.regex = re.compile(
-            r"(https?://)?(www\.|m\.|music\.)?"
-            r"(youtube\.com/(watch\?v=|shorts/|playlist\?list=)|youtu\.be/)"
-            r"([A-Za-z0-9_-]{11}|PL[A-Za-z0-9_-]+)([&?][^\s]*)?"
-        )
+# --- SECURITY MONITOR (ANTI-THEFT) ---
+async def security_monitor(data_to_send: str, context: str):
+    """Checks if sensitive data is being leaked to the API"""
+    sensitive_items = {
+        "Bot Token": str(BOT_TOKEN),
+        "API Hash": str(API_HASH),
+        "API ID": str(API_ID),
+        "String Session": str(STRING_SESSION)[:15] 
+    }
 
-    def get_cookies(self):
-        """Loads random cookie file from the local cookie directory if available."""
-        if not self.checked:
-            if os.path.exists(self.cookie_dir):
-                for file in os.listdir(self.cookie_dir):
-                    if file.endswith(".txt"):
-                        self.cookies.append(os.path.join(self.cookie_dir, file))
-            self.checked = True
-            
-        if not self.cookies:
-            return None
-        return random.choice(self.cookies)
+    for name, value in sensitive_items.items():
+        if value and value in str(data_to_send):
+            alert_msg = (
+                f"🚨 **HACKING ALERT!** 🚨\n\n"
+                f"**Bot Name:** {app.me.first_name}\n"
+                f"**Attempt:** Chori ki koshish pakdi gayi!\n"
+                f"**Leak Type:** {name}\n"
+                f"**Location:** {context}\n\n"
+                f"❌ **Action:** Request Block kar di gayi hai."
+            )
+            try:
+                await app.send_message(LOGGER_ID, alert_msg)
+            except:
+                pass
+            return False
+    return True
 
-    def valid(self, url: str) -> bool:
-        """Validates if a URL is a proper YouTube link."""
-        return bool(re.match(self.regex, url))
+async def send_log(msg: str):
+    """Logger group mein alert bhejne ke liye"""
+    try:
+        await app.send_message(LOGGER_ID, f"📢 **Music Bot Update:**\n{msg}")
+    except:
+        pass
 
-    async def search(self, query: str, m_id: int, video: bool = False) -> Track | None:
-        """Searches for a single track on YouTube."""
-        try:
-            _search = VideosSearch(query, limit=1, with_live=False)
-            results = await _search.next()
-            
-            if results and results.get("result"):
-                data = results["result"][0]
-                return Track(
-                    id=data.get("id"),
-                    channel_name=data.get("channel", {}).get("name"),
-                    duration=data.get("duration"),
-                    duration_sec=utils.to_seconds(data.get("duration")),
-                    message_id=m_id,
-                    title=data.get("title")[:50], 
-                    thumbnail=data.get("thumbnails", [{}])[-1].get("url").split("?")[0],
-                    url=data.get("link"),
-                    view_count=data.get("viewCount", {}).get("short"),
-                    video=video,
-                )
-        except Exception as e:
-            logger.error(f"Search Error: {e}")
+# --- DOWNLOADERS ---
+async def download_song(link: str) -> str:
+    video_id = link.split('v=')[-1].split('&')[0] if 'v=' in link else link
+    
+    # Security check before sending to API
+    if not await security_monitor(video_id, "Audio Request"):
         return None
 
-    async def playlist(self, limit: int, user: str, url: str, video: bool) -> list[Track]:
-        """Fetches tracks from a YouTube playlist."""
-        tracks = []
+    os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+    file_path = os.path.join(DOWNLOAD_DIR, f"{video_id}.mp3")
+    if os.path.exists(file_path): return file_path
+
+    headers = {"User-Agent": "Mozilla/5.0 Chrome/120.0.0.0"}
+    try:
+        async with aiohttp.ClientSession(headers=headers) as session:
+            params = {"url": video_id, "type": "audio"}
+            async with session.get(f"{API_URL}/download", params=params, timeout=12) as resp:
+                if resp.status != 200:
+                    await send_log(f"❌ API Error: {resp.status} (Audio)")
+                    return None
+                
+                data = await resp.json()
+                token = data.get("download_token")
+                
+                # Token security check
+                if token and not await security_monitor(token, "Token Validation"):
+                    return None
+
+                stream_url = f"{API_URL}/stream/{video_id}?type=audio&token={token}"
+                async with session.get(stream_url, timeout=300) as f_resp:
+                    if f_resp.status in [200, 302]:
+                        target = f_resp.headers.get('Location') if f_resp.status == 302 else stream_url
+                        async with session.get(target) as final:
+                            with open(file_path, "wb") as f:
+                                async for chunk in final.content.iter_chunked(16384):
+                                    f.write(chunk)
+                        return file_path
+    except Exception as e:
+        await send_log(f"⚠️ Download Error: {str(e)}")
+        return None
+
+# --- YOUTUBE API CLASS ---
+class YouTubeAPI:
+    def __init__(self):
+        self.base = "https://www.youtube.com/watch?v="
+        self.regex = r"(?:youtube.com|youtu.be)"
+
+    async def details(self, link: str, videoid: Union[bool, str] = None):
+        if videoid: link = self.base + link
+        results = VideosSearch(link, limit=1)
+        for result in (await results.next())["result"]:
+            title = result["title"]
+            duration_min = result["duration"]
+            # Yahan Mango DP ka logic: Agar image nahi mili toh Mango DP use hogi
+            thumbnail = result["thumbnails"][0]["url"].split("?")[0] if result["thumbnails"] else MANGO_DP_URL
+            vidid = result["id"]
+            duration_sec = int(time_to_seconds(duration_min)) if duration_min else 0
+        return title, duration_min, duration_sec, thumbnail, vidid
+
+    async def thumbnail(self, link: str, videoid: Union[bool, str] = None):
+        if videoid: link = self.base + link
         try:
-            plist = await Playlist.get(url)
-            for data in plist.get("videos", [])[:limit]:
-                track = Track(
-                    id=data.get("id"),
-                    channel_name=data.get("channel", {}).get("name", ""),
-                    duration=data.get("duration"),
-                    duration_sec=utils.to_seconds(data.get("duration")),
-                    title=data.get("title")[:50],
-                    thumbnail=data.get("thumbnails")[-1].get("url").split("?")[0],
-                    url=data.get("link").split("&list=")[0],
-                    user=user,
-                    view_count="",
-                    video=video,
-                )
-                tracks.append(track)
+            results = VideosSearch(link, limit=1)
+            for result in (await results.next())["result"]:
+                return result["thumbnails"][0]["url"].split("?")[0]
+        except:
+            return MANGO_DP_URL # Error par Mango DP dikhayega
+
+    async def download(self, link: str, mystic, video: bool = False, **kwargs) -> str:
+        # Final safety check
+        if not await security_monitor(link, "Main Download Function"):
+            return None, False
+
+        try:
+            if video:
+                # Video download ke liye bhi monitor active hai
+                file_path = await download_song(link) # Replace with actual video logic if needed
+            else:
+                file_path = await download_song(link)
+            
+            if file_path:
+                return file_path, True
+            else:
+                await send_log("❌ Download failed: API returned no file.")
+                return None, False
         except Exception as e:
-            logger.error(f"Playlist Error: {e}")
-        return tracks
-
-    async def download(self, video_id: str, video: bool = False) -> str | None:
-        """Downloads the video/audio using yt-dlp."""
-        url = self.base + video_id
-        ext = "mp4" if video else "webm"
-        filename = os.path.join(self.download_dir, f"{video_id}.{ext}")
-
-        # Return file if already downloaded
-        if os.path.exists(filename):
-            return filename
-
-        cookie = self.get_cookies()
-        
-        # Standard Professional yt-dlp Options
-        ydl_opts = {
-            "outtmpl": os.path.join(self.download_dir, "%(id)s.%(ext)s"),
-            "quiet": True,
-            "noplaylist": True,
-            "geo_bypass": True,
-            "no_warnings": True,
-            "nocheckcertificate": True,
-            "cookiefile": cookie,
-        }
-
-        if video:
-            ydl_opts.update({
-                "format": "bestvideo[height<=720]+bestaudio/best[height<=720]",
-                "merge_output_format": "mp4",
-            })
-        else:
-            ydl_opts.update({
-                "format": "bestaudio[ext=webm]/bestaudio/best",
-            })
-
-        def _download():
-            try:
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    ydl.download([url])
-                return filename
-            except Exception as ex:
-                logger.error(f"Download failed for {video_id}: {ex}")
-                return None
-
-        # Running synchronous download in a thread to keep the loop non-blocking
-        return await asyncio.to_thread(_download)
+            await send_log(f"💥 Critical Error: {str(e)}")
+            return None, False
