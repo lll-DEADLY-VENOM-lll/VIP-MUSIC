@@ -1,6 +1,6 @@
 from pyrogram.types import InlineKeyboardButton
 import config
-from KanhaMusic import app # Updated from VIPMUSIC to KanhaMusic
+from VIPMUSIC import app # Updated from VIPMUSIC to KanhaMusic
 
 def start_panel(_):
     buttons = [
