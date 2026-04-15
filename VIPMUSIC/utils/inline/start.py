@@ -1,4 +1,4 @@
- from pyrogram.types import InlineKeyboardButton
+from pyrogram.types import InlineKeyboardButton
 
 import config
 from config import SUPPORT_GROUP
@@ -51,4 +51,4 @@ def private_panel(_):
             ),
         ],
     ]
-    return butt
+    return buttons
