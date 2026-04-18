@@ -119,12 +119,12 @@ SUPPORT_CHANNEL = getenv(
     "SUPPORT_CHANNEL", "https://t.me/about_deadly_venom"
 )  # Example:- https://t.me/about_deadly_venom
 SUPPORT_GROUP = getenv(
-    "SUPPORT_GROUP", "https://t.me/NOBITA_SUPPORT"
-)  # Example:- https://t.me/NOBITA_SUPPORT
+    "SUPPORT_GROUP", "https://t.me/+wlfVE1P8C9QzOGI9"
+)  # Example:- https://t.me/+wlfVE1P8C9QzOGI9
 
 SUPPORT_CHAT = getenv(
-    "SUPPORT_GROUP", "https://t.me/NOBITA_SUPPORT"
-)  # Example:- https://t.me/NOBITA_SUPPORT
+    "SUPPORT_GROUP", "https://t.me/+wlfVE1P8C9QzOGI9"
+)  # Example:- https://t.me/+wlfVE1P8C9QzOGI9
 # Set it in True if you want to leave your assistant after a certain amount of time. [Set time via AUTO_LEAVE_ASSISTANT_TIME]
 AUTO_LEAVING_ASSISTANT = getenv("AUTO_LEAVING_ASSISTANT", False)
 
@@ -219,17 +219,17 @@ autoclean = []
 
 START_IMG_URL = getenv(
     "START_IMG_URL",
-    "https://files.catbox.moe/hh29ph.jpg",
+    "https://i.ibb.co/G3bVD6qb/x.jpg",
 )
 
 PING_IMG_URL = getenv(
     "PING_IMG_URL",
-    "https://files.catbox.moe/egzk7f.jpg",
+    "https://i.ibb.co/Pz4Vcqf5/x.jpg",
 )
 
 PLAYLIST_IMG_URL = getenv(
     "PLAYLIST_IMG_URL",
-    "https://graph.org/file/d54db06441a57db35b7ed-9e3a479f0390b6ccf5.jpg",
+    "https://i.ibb.co/Pz4Vcqf5/x.jpg",
 )
 
 GLOBAL_IMG_URL = getenv(
@@ -264,7 +264,7 @@ SOUNCLOUD_IMG_URL = getenv(
 
 YOUTUBE_IMG_URL = getenv(
     "YOUTUBE_IMG_URL",
-    "https://telegra.ph/file/76d29aa31c40a7f026d7e.jpg",
+    "https://i.ibb.co/Pz4Vcqf5/x.jpg",
 )
 
 SPOTIFY_ARTIST_IMG_URL = getenv(
