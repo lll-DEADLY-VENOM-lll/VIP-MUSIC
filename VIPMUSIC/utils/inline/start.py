@@ -40,8 +40,8 @@ def private_panel(_):
             InlineKeyboardButton(text="🛡️ ᴘᴏʟɪᴄʏ", url=config.UPSTREAM_REPO),
         ],
         [
-            InlineKeyboardButton(text="📩 ᴄʜᴀɴɴᴇʟ ↗", url=config.SUPPORT_CHANNEL),
-            InlineKeyboardButton(text="📩 ꜱᴜᴘᴘᴏʀᴛ ↗", url=config.SUPPORT_CHAT),
+            InlineKeyboardButton(text="📩 ᴄʜᴀɴɴᴇʟ", url=config.SUPPORT_CHANNEL),
+            InlineKeyboardButton(text="📩 ꜱᴜᴘᴘᴏʀᴛ", url=config.SUPPORT_CHAT),
         ],
         [
             InlineKeyboardButton(
@@ -59,7 +59,7 @@ def alive_panel(_):
             InlineKeyboardButton(text="🛡️ ᴘᴏʟɪᴄʏ", url=config.UPSTREAM_REPO),
         ],
         [
-            InlineKeyboardButton(text="📩 ꜱᴜᴘᴘᴏʀᴛ ↗", url=config.SUPPORT_CHAT),
+            InlineKeyboardButton(text="📩 ꜱᴜᴘᴘᴏʀᴛ", url=config.SUPPORT_CHAT),
             InlineKeyboardButton(
                 text="➕ ᴀᴅᴅ ᴍᴇ ➕",
                 url=f"https://t.me/{app.username}?startgroup=true"
