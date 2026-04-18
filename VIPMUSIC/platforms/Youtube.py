@@ -11,18 +11,17 @@ from youtubesearchpython.__future__ import VideosSearch, Playlist
 from VIPMUSIC.utils.formatters import time_to_seconds
 from VIPMUSIC import LOGGER
 
-# IMPORTANT: Credentials hamesha config se hi aane chahiye
+# --- SECURITY 1: CREDENTIALS SAFETY ---
 try:
     from config import API_ID, BOT_TOKEN, MONGO_DB_URI
 except ImportError:
     LOGGER.error("Config file not found! Ensure API_ID, BOT_TOKEN and MONGO_DB_URI are set.")
 
-# --- SECURITY: SENSITIVE DATA REDACTION FILTER ---
+# --- SECURITY 2: SENSITIVE DATA REDACTION FILTER ---
 class SensitiveDataFilter(logging.Filter):
     """Logs se sensitive info (Tokens, MongoURI) ko remove karne ke liye filter"""
     def filter(self, record):
         msg = str(record.msg)
-        # Regex for Bot Token, MongoURI, and Session Strings
         patterns = [
             r"\d{8,10}:[a-zA-Z0-9_-]{35,}",  # Telegram Bot Token
             r"mongodb\+srv://\S+",           # Mongo DB URI
@@ -33,15 +32,15 @@ class SensitiveDataFilter(logging.Filter):
         record.msg = msg
         return True
 
-# Logger par security filter apply karein
 logging.getLogger().addFilter(SensitiveDataFilter())
 
 # --- CONFIGURATION ---
 API_URL = "https://shrutibots.site"
 DOWNLOAD_DIR = "downloads"
+COOKIE_FILE = "cookies.txt" # YouTube block se bachne ke liye
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
-# --- UTILS ---
+# --- SECURITY 3: ID SANITIZATION ---
 def get_clean_id(link: str) -> Optional[str]:
     """Video ID ko sanitize karta hai taaki path traversal attack na ho"""
     if "v=" in link:
@@ -55,29 +54,25 @@ def get_clean_id(link: str) -> Optional[str]:
     return clean_id if 5 <= len(clean_id) <= 15 else None
 
 async def api_downloader(link: str, media_type: str) -> Optional[str]:
-    """Audio/Video download karne wala core function"""
     video_id = get_clean_id(link)
     if not video_id:
         return None
 
     ext = "mp3" if media_type == "audio" else "mp4"
+    # SECURITY 4: Absolute Path Verification
     file_path = os.path.abspath(os.path.join(DOWNLOAD_DIR, f"{video_id}.{ext}"))
-
-    # Security: Ensure path escapes na hon
     if not file_path.startswith(os.path.abspath(DOWNLOAD_DIR)):
         return None
 
-    if os.path.exists(file_path):
+    if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
         return file_path
 
     try:
-        # aiohttp automatically redirects handle karta hai
         timeout = aiohttp.ClientTimeout(total=600) 
-        async with aiohttp.ClientSession(headers={"User-Agent": "ShrutiMusicBot/1.0"}, timeout=timeout) as session:
+        async with aiohttp.ClientSession(headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}, timeout=timeout) as session:
             # Step 1: Token prapt karein
             async with session.get(f"{API_URL}/download", params={"url": video_id, "type": media_type}) as resp:
-                if resp.status != 200:
-                    return None
+                if resp.status != 200: return None
                 data = await resp.json()
                 token = data.get("download_token")
                 if not token: return None
@@ -93,7 +88,6 @@ async def api_downloader(link: str, media_type: str) -> Optional[str]:
                     if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
                         return file_path
     except Exception:
-        # Security: Exception 'e' ko log na karein, usme system path ya token ho sakta hai
         LOGGER.error(f"Download Error for Video ID: {video_id}")
         if os.path.exists(file_path):
             try: os.remove(file_path)
@@ -111,7 +105,6 @@ class YouTubeAPI:
         return bool(re.search(self.regex, link))
 
     async def url(self, message: Message) -> Optional[str]:
-        """Message se YouTube URL extract karne ke liye"""
         for msg in [message, message.reply_to_message]:
             if not msg: continue
             text = msg.text or msg.caption
@@ -141,54 +134,22 @@ class YouTubeAPI:
         except Exception:
             return None
 
-    async def title(self, link: str, videoid: Union[bool, str] = None):
-        det = await self.details(link, videoid)
-        return det[0] if det else "Unknown Title"
-
-    async def video(self, link: str, videoid: Union[bool, str] = None):
-        if videoid: link = self.base + link
-        file = await api_downloader(link, "video")
-        return (1, file) if file else (0, "Download Failed")
-
-    async def playlist(self, link, limit, user_id, videoid: Union[bool, str] = None):
-        if videoid: link = self.listbase + link
-        try:
-            plist = await Playlist.get(link)
-            return [v["id"] for v in plist.get("videos", [])[:limit] if v.get("id")]
-        except:
-            return []
-
-    async def track(self, link: str, videoid: Union[bool, str] = None):
-        det = await self.details(link, videoid)
-        if not det: return None, None
-        track_details = {
-            "title": det[0],
-            "link": self.base + det[4],
-            "vidid": det[4],
-            "duration_min": det[1],
-            "thumb": det[3],
-        }
-        return track_details, det[4]
-
     async def formats(self, link: str, videoid: Union[bool, str] = None):
         if videoid: link = self.base + link
         link = link.split("&")[0]
         
-        # yt-dlp Settings for maximum security
         ytdl_opts = {
             "quiet": True,
             "no_warnings": True,
             "nocheckcertificate": True,
-            "no_color": True,
+            "cookiefile": COOKIE_FILE if os.path.exists(COOKIE_FILE) else None,
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "logger": logging.getLogger("dummy"), 
         }
         
-        def fetch_info():
-            with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
-                return ydl.extract_info(link, download=False)
-
         try:
-            info = await asyncio.to_thread(fetch_info)
+            with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
+                info = await asyncio.to_thread(ydl.extract_info, link, download=False)
             formats_available = []
             for f in info.get("formats", []):
                 if f.get("format_id"):
@@ -204,18 +165,35 @@ class YouTubeAPI:
         except Exception:
             return [], link
 
-    async def download(
-        self,
-        link: str,
-        mystic,
-        video: Union[bool, str] = None,
-        videoid: Union[bool, str] = None,
-        **kwargs
-    ) -> Tuple[Optional[str], bool]:
+    async def download(self, link: str, mystic, video: bool = False, videoid: bool = False, **kwargs) -> Tuple[Optional[str], bool]:
         if videoid: link = self.base + link
         
+        # Priority 1: API Downloader
+        file_path = await (api_downloader(link, "video") if video else api_downloader(link, "audio"))
+        if file_path:
+            return file_path, True
+
+        # Priority 2: Security Fallback (Direct yt-dlp with Cookies)
+        # Ye tab chalega jab API fail ho jaye
+        vid_id = get_clean_id(link)
+        output_path = os.path.abspath(os.path.join(DOWNLOAD_DIR, f"{vid_id}.{'mp4' if video else 'mp3'}"))
+
+        ytdl_opts = {
+            "format": "bestaudio/best" if not video else "best",
+            "outtmpl": output_path,
+            "cookiefile": COOKIE_FILE if os.path.exists(COOKIE_FILE) else None,
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "quiet": True,
+            "nocheckcertificate": True,
+            "no_color": True,
+        }
+
         try:
-            file_path = await (api_downloader(link, "video") if video else api_downloader(link, "audio"))
-            return (file_path, True) if file_path else (None, False)
-        except Exception:
-            return None, False
+            with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
+                await asyncio.to_thread(ydl.download, [link])
+            if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+                return output_path, True
+        except Exception as e:
+            LOGGER.error(f"Full System Failure for {link}: {e}")
+        
+        return None, False
