@@ -10,7 +10,6 @@ from config import BANNED_USERS, START_IMG_URL
 from strings import get_string
 from VIPMUSIC import HELPABLE, Telegram, YouTube, app
 from VIPMUSIC.misc import SUDOERS, _boot_
-from VIPMUSIC.plugins.sudo.sudoers import sudoers_list
 from VIPMUSIC.utils.database import (
     add_served_chat,
     add_served_user,
@@ -27,19 +26,48 @@ from VIPMUSIC.utils.formatters import get_readable_time
 from VIPMUSIC.utils.functions import MARKDOWN, WELCOMEHELP
 from .help import paginate_modules
 
-# --- FIX START: Safely import or define panels ---
-try:
-    from VIPMUSIC.utils.inline import alive_panel, private_panel, start_pannel
-except ImportError:
-    try:
-        from VIPMUSIC.utils.inline.start import alive_panel, private_panel, start_pannel
-    except ImportError:
-        # Fallback if functions are missing or renamed in your repo
-        def alive_panel(_): return [[InlineKeyboardButton("Support", url=config.SUPPORT_CHAT)]]
-        def private_panel(_): return [[InlineKeyboardButton("Add me to Group", url=f"https://t.me/{app.username}?startgroup=true")]]
-        def start_pannel(_): return [[InlineKeyboardButton("Help", callback_data="settings_back_helper")]]
-# --- FIX END ---
+# --- BUTTON LAYOUT (AS PER YOUR IMAGE) ---
+def private_panel(_):
+    buttons = [
+        [
+            InlineKeyboardButton(
+                text="➕ ADD ME TO YOUR GROUP ➕",
+                url=f"https://t.me/{app.username}?startgroup=true",
+            ),
+        ],
+        [
+            InlineKeyboardButton(text="⚜️ LANGUAGE", callback_data="LG"),
+            InlineKeyboardButton(text="🛡️ POLICY", url=config.UPSTREAM_REPO),
+        ],
+        [
+            InlineKeyboardButton(text="📩 CHANNEL ↗", url=config.SUPPORT_CHANNEL),
+            InlineKeyboardButton(text="📩 SUPPORT ↗", url=config.SUPPORT_CHAT),
+        ],
+        [
+            InlineKeyboardButton(
+                text="🔍 HOW TO USE? COMMAND MENU", callback_data="settings_back_helper"
+            ),
+        ],
+    ]
+    return buttons
 
+def alive_panel(_):
+    buttons = [
+        [
+            InlineKeyboardButton(text="⚜️ LANGUAGE", callback_data="LG"),
+            InlineKeyboardButton(text="🛡️ POLICY", url=config.UPSTREAM_REPO),
+        ],
+        [
+            InlineKeyboardButton(text="📩 SUPPORT ↗", url=config.SUPPORT_CHAT),
+            InlineKeyboardButton(text="➕ ADD ME ➕", url=f"https://t.me/{app.username}?startgroup=true"),
+        ],
+    ]
+    return buttons
+
+def start_pannel(_):
+    return private_panel(_)
+
+# --- LOGIC ---
 loop = asyncio.get_running_loop()
 
 def get_log_id():
@@ -72,6 +100,7 @@ async def start_comm(client, message: Message, _):
             keyboard = InlineKeyboardMarkup(paginate_modules(0, HELPABLE, "help", close=True))
             return await message.reply_photo(photo=START_IMG_URL, caption=_["help_1"], reply_markup=keyboard)
         if name[0:3] == "sud":
+            from VIPMUSIC.plugins.sudo.sudoers import sudoers_list
             return await sudoers_list(client=client, message=message, _=_)
 
     out = private_panel(_)
@@ -80,13 +109,17 @@ async def start_comm(client, message: Message, _):
             photo=config.START_IMG_URL,
             caption=_["start_2"].format(message.from_user.mention, app.mention),
             reply_markup=InlineKeyboardMarkup(out),
-            message_effect_id="5311823902341673323"
+            message_effect_id="5311823902341673323" # Premium Heart Effect
         )
     except:
-        await message.reply_photo(photo=config.START_IMG_URL, caption=_["start_2"].format(message.from_user.mention, app.mention), reply_markup=InlineKeyboardMarkup(out))
+        await message.reply_photo(
+            photo=config.START_IMG_URL, 
+            caption=_["start_2"].format(message.from_user.mention, app.mention), 
+            reply_markup=InlineKeyboardMarkup(out)
+        )
 
     if await is_on_off(config.LOG):
-        try: await app.send_message(get_log_id(), f"{message.from_user.mention} has started the bot.")
+        try: await app.send_message(get_log_id(), f"**#NewUser**\n\n{message.from_user.mention} started the bot.")
         except: pass
 
 @app.on_message(filters.command(["start"]) & filters.group & ~BANNED_USERS)
@@ -94,7 +127,11 @@ async def start_comm(client, message: Message, _):
 async def testbot(client, message: Message, _):
     out = alive_panel(_)
     uptime = get_readable_time(int(time.time() - _boot_))
-    await message.reply_photo(photo=config.START_IMG_URL, caption=_["start_7"].format(app.mention, uptime), reply_markup=InlineKeyboardMarkup(out))
+    await message.reply_photo(
+        photo=config.START_IMG_URL,
+        caption=_["start_7"].format(app.mention, uptime),
+        reply_markup=InlineKeyboardMarkup(out),
+    )
     return await add_served_chat(message.chat.id)
 
 @app.on_message(filters.new_chat_members, group=-1)
@@ -107,8 +144,11 @@ async def welcome(client, message: Message):
             _ = get_string(language)
             if member.id == app.id:
                 userbot = await get_assistant(chat_id)
-                await message.reply_text(_["start_2"].format(app.mention, userbot.username, userbot.id), reply_markup=InlineKeyboardMarkup(start_pannel(_)))
+                await message.reply_text(
+                    _["start_2"].format(app.mention, userbot.username, userbot.id), 
+                    reply_markup=InlineKeyboardMarkup(start_pannel(_))
+                )
         except: pass
 
 __MODULE__ = "Bot"
-__HELP__ = "★ /start - Start the bot\n★ /stats - Get Stats"
+__HELP__ = "★ /start - Start the bot\n★ /stats - Get bot stats"
