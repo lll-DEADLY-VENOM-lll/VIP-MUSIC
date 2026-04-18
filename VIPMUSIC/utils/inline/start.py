@@ -37,7 +37,7 @@ def private_panel(_):
         ],
         [
             InlineKeyboardButton(text="⚜️ ʟᴀɴɢᴜᴀɢᴇ", callback_data="LG"),
-            InlineKeyboardButton(text="🛡️ ᴘᴏʟɪᴄʏ", url=config.UPSTREAM_REPO),
+            InlineKeyboardButton(text="🛡️ ᴘᴏʟɪᴄʏ", url=config.PRIVACY_LINK),
         ],
         [
             InlineKeyboardButton(text="📡 ᴄʜᴀɴɴᴇʟ", url=config.SUPPORT_CHANNEL),
@@ -56,7 +56,7 @@ def alive_panel(_):
     buttons = [
         [
             InlineKeyboardButton(text="⚜️ ʟᴀɴɢᴜᴀɢᴇ", callback_data="LG"),
-            InlineKeyboardButton(text="🛡️ ᴘᴏʟɪᴄʏ", url=config.UPSTREAM_REPO),
+            InlineKeyboardButton(text="🛡️ ᴘᴏʟɪᴄʏ", url=config.PRIVACY_LINK),
         ],
         [
             InlineKeyboardButton(text="📨 ꜱᴜᴘᴘᴏʀᴛ", url=config.SUPPORT_CHAT),
