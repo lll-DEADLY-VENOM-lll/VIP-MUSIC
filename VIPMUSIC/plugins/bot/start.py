@@ -38,7 +38,9 @@ from VIPMUSIC.utils.database import (
 from VIPMUSIC.utils.decorators.language import LanguageStart
 from VIPMUSIC.utils.formatters import get_readable_time
 from VIPMUSIC.utils.functions import MARKDOWN, WELCOMEHELP
-from VIPMUSIC.utils.inline import alive_panel, private_panel, start_pannel
+
+# CHANGE: Importing from .start instead of just .inline to fix ImportError
+from VIPMUSIC.utils.inline.start import alive_panel, private_panel, start_pannel
 
 from .help import paginate_modules
 
@@ -173,14 +175,14 @@ async def start_comm(client, message: Message, _):
             message_effect_id="5311823902341673323" # <--- Heart/Premium Effect
         )
     except Exception:
-        # Fallback if the effect isn't supported by the user's client or bot version
+        # Fallback
         await message.reply_photo(
             photo=config.START_IMG_URL, 
             caption=_["start_2"].format(message.from_user.mention, app.mention), 
             reply_markup=InlineKeyboardMarkup(out)
         )
 
-    # Log activity to Log Group
+    # Log activity
     if await is_on_off(config.LOG):
         try:
             await app.send_message(
