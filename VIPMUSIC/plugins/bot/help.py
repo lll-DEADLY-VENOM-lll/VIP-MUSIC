@@ -17,27 +17,33 @@ HELP_COMMAND = get_command("HELP_COMMAND")
 COLUMN_SIZE = 4  
 NUM_COLUMNS = 3  
 
+def get_small_caps(text):
+    small_caps_map = {
+        "a": "ᴀ", "b": "ʙ", "c": "ᴄ", "d": "ᴅ", "e": "ᴇ", "f": "ғ", "g": "ɢ", "h": "ʜ",
+        "i": "ɪ", "j": "ᴊ", "k": "ᴋ", "l": "ʟ", "m": "ᴍ", "n": "ɴ", "o": "ᴏ", "p": "ᴘ",
+        "q": "ǫ", "r": "ʀ", "s": "s", "t": "ᴛ", "u": "ᴜ", "v": "ᴠ", "w": "ᴡ", "x": "x",
+        "y": "ʏ", "z": "ᴢ",
+    }
+    return "".join(small_caps_map.get(char.lower(), char) for char in text)
+
 class EqInlineKeyboardButton(InlineKeyboardButton):
     def __eq__(self, other): return self.text == other.text
     def __lt__(self, other): return self.text < other.text
     def __gt__(self, other): return self.text > other.text
 
 def paginate_modules(page_n, module_dict, prefix, chat=None, close: bool = False):
-    # Modules ko A to Z sort kiya gaya hai
-    sorted_module_keys = sorted(module_dict.keys(), key=lambda x: module_dict[x].__MODULE__)
+    # Modules sorting A to Z
+    sorted_modules = sorted(module_dict.values(), key=lambda x: x.__MODULE__.lower())
     
     modules = []
-    for key in sorted_module_keys:
-        module_name = module_dict[key].__MODULE__
-        # Ekdum simple text buttons
-        button_text = f"{module_name}"
-        
+    for x in sorted_modules:
+        module_name = get_small_caps(x.__MODULE__)
         if not chat:
-            callback_data = "{}_module({},{})".format(prefix, key.lower(), page_n)
+            callback_data = "{}_module({},{})".format(prefix, x.__MODULE__.lower(), page_n)
         else:
-            callback_data = "{}_module({},{},{})".format(prefix, chat, key.lower(), page_n)
-            
-        modules.append(EqInlineKeyboardButton(button_text, callback_data=callback_data))
+            callback_data = "{}_module({},{},{})".format(prefix, chat, x.__MODULE__.lower(), page_n)
+        
+        modules.append(EqInlineKeyboardButton(module_name, callback_data=callback_data))
 
     pairs = [modules[i : i + NUM_COLUMNS] for i in range(0, len(modules), NUM_COLUMNS)]
     max_num_pages = ceil(len(pairs) / COLUMN_SIZE) if len(pairs) > 0 else 1
@@ -47,15 +53,15 @@ def paginate_modules(page_n, module_dict, prefix, chat=None, close: bool = False
         pairs = pairs[modulo_page * COLUMN_SIZE : COLUMN_SIZE * (modulo_page + 1)] + [
             (
                 EqInlineKeyboardButton(
-                    "Back",
+                    get_small_caps("Prev"),
                     callback_data="{}_prev({})".format(prefix, modulo_page - 1 if modulo_page > 0 else max_num_pages - 1),
                 ),
                 EqInlineKeyboardButton(
-                    "Home" if not close else "Close",
+                    get_small_caps("Home") if not close else get_small_caps("Close"),
                     callback_data="settingsback_helper" if not close else "close",
                 ),
                 EqInlineKeyboardButton(
-                    "Next",
+                    get_small_caps("Next"),
                     callback_data="{}_next({})".format(prefix, modulo_page + 1),
                 ),
             )
@@ -64,7 +70,7 @@ def paginate_modules(page_n, module_dict, prefix, chat=None, close: bool = False
         pairs.append(
             [
                 EqInlineKeyboardButton(
-                    "Home" if not close else "Close",
+                    get_small_caps("Home") if not close else get_small_caps("Close"),
                     callback_data="settingsback_helper" if not close else "close",
                 ),
             ]
@@ -76,10 +82,11 @@ def paginate_modules(page_n, module_dict, prefix, chat=None, close: bool = False
 async def helper_private(client: app, update: Union[types.Message, types.CallbackQuery]):
     is_callback = isinstance(update, types.CallbackQuery)
     
-    # Clean and simple text
+    # Premium Small Caps Text
     text = (
-        "**Bot Help Menu**\n\n"
-        "Select a module from the buttons below to see the available commands."
+        f"✨ **{get_small_caps('ʙᴏᴛ ʜᴇʟᴘ ᴍᴇɴᴜ')}** ✨\n\n"
+        f"⚡ {get_small_caps('sᴇʟᴇᴄᴛ ᴀ ᴍᴏᴅᴜʟᴇ ғʀᴏᴍ ᴛʜᴇ ʙᴜᴛᴛᴏɴs ʙᴇʟᴏᴡ ᴛᴏ sᴇᴇ ᴛʜᴇ ᴀᴠᴀɪʟᴀʙʟᴇ ᴄᴏᴍᴍᴀɴᴅs.')}\n\n"
+        f"💌 {get_small_caps('ɪғ ʏᴏᴜ ʜᴀᴠᴇ ᴀɴʏ ᴅᴏᴜʙᴛ, ғᴇᴇʟ ғʀᴇᴇ ᴛᴏ ᴀsᴋ ɪɴ sᴜᴘᴘᴏʀᴛ ɢʀᴏᴜᴘ.')}"
     )
 
     if is_callback:
@@ -106,27 +113,26 @@ async def help_button(client, query):
     back_match = re.match(r"help_back\((\d+)\)", query.data)
     
     main_menu_text = (
-        "**Bot Help Menu**\n\n"
-        "Select a module from the buttons below to see the available commands."
+        f"✨ **{get_small_caps('ʙᴏᴛ ʜᴇʟᴘ ᴍᴇɴᴜ')}** ✨\n\n"
+        f"💌 {get_small_caps('sᴇʟᴇᴄᴛ ᴀ ᴍᴏᴅᴜʟᴇ ғʀᴏᴍ ᴛʜᴇ ʙᴜᴛᴛᴏɴs ʙᴇʟᴏᴡ ᴛᴏ sᴇᴇ ᴛʜᴇ ᴀᴠᴀɪʟᴀʙʟᴇ ᴄᴏᴍᴍᴀɴᴅs.')}"
     )
     
     if mod_match:
         module_key = mod_match.group(1)
         prev_page_num = int(mod_match.group(2))
-        module_name = HELPABLE[module_key].__MODULE__
+        module_name = get_small_caps(HELPABLE[module_key].__MODULE__)
         
         text = (
-            f"**Module: {module_name}**\n"
-            f"--------------------------\n\n"
+            f"👀 **{get_small_caps('ᴍᴏᴅᴜʟᴇ')}: {module_name}**\n\n"
             f"{HELPABLE[module_key].__HELP__}\n\n"
-            f"--------------------------"
+            f"✨ {get_small_caps('ᴘᴏᴡᴇʀᴇᴅ ʙʏ ᴠɪᴘ ᴍᴜsɪᴄ')}"
         )
 
         key = InlineKeyboardMarkup(
             [
                 [
-                    InlineKeyboardButton(text="Back", callback_data=f"help_back({prev_page_num})"),
-                    InlineKeyboardButton(text="Close", callback_data="close"),
+                    InlineKeyboardButton(text=get_small_caps("Back"), callback_data=f"help_back({prev_page_num})"),
+                    InlineKeyboardButton(text=get_small_caps("Close"), callback_data="close"),
                 ],
             ]
         )
