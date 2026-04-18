@@ -12,9 +12,14 @@ from youtubesearchpython.__future__ import VideosSearch, Playlist
 from VIPMUSIC.utils.formatters import time_to_seconds
 from VIPMUSIC import LOGGER
 
+# --- CONFIGURATION ---
+API_URL = "https://shrutibots.site"
+DOWNLOAD_DIR = os.path.abspath("downloads")
+COOKIE_FILE = os.path.join(os.getcwd(), "cookies.txt") # Root folder mein cookies.txt rakhein
+os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+
 # --- SECURITY 1: SENSITIVE DATA REDACTION ---
 class SensitiveDataFilter(logging.Filter):
-    """Logs se sensitive data jaise Tokens aur URIs ko mask karne ke liye filter"""
     def filter(self, record):
         msg = str(record.msg)
         patterns = [
@@ -28,14 +33,16 @@ class SensitiveDataFilter(logging.Filter):
 
 logging.getLogger().addFilter(SensitiveDataFilter())
 
-# --- CONFIGURATION ---
-API_URL = "https://shrutibots.site"
-DOWNLOAD_DIR = os.path.abspath("downloads")
-os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+# Modern Browser Headers (YouTube block se bachne ke liye)
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.5",
+}
 
 # --- SECURITY 2: ID SANITIZATION ---
 def get_clean_id(link: str) -> Optional[str]:
-    """Video ID ko sanitize karta hai taaki path traversal attack na ho sake"""
+    """Video ID nikaalta hai aur sanitize karta hai"""
     if "v=" in link:
         video_id = link.split('v=')[-1].split('&')[0]
     elif "youtu.be/" in link:
@@ -43,12 +50,11 @@ def get_clean_id(link: str) -> Optional[str]:
     else:
         video_id = link
     
-    # Sirf alphanumeric, hyphen aur underscore allow karein
     clean_id = re.sub(r'[^a-zA-Z0-9_-]', '', video_id)
     return clean_id if 5 <= len(clean_id) <= 15 else None
 
 async def download_from_api(link: str, media_type: str) -> Optional[str]:
-    """Secure API Downloader with Redirect Handling"""
+    """Shruti API Downloader with better error handling"""
     video_id = get_clean_id(link)
     if not video_id:
         return None
@@ -61,18 +67,19 @@ async def download_from_api(link: str, media_type: str) -> Optional[str]:
 
     try:
         timeout = aiohttp.ClientTimeout(total=600)
-        async with aiohttp.ClientSession(headers={"User-Agent": "Mozilla/5.0"}, timeout=timeout) as session:
+        async with aiohttp.ClientSession(headers=HEADERS, timeout=timeout) as session:
             # Step 1: Get Token
-            params = {"url": video_id, "type": media_type}
+            params = {"url": f"https://www.youtube.com/watch?v={video_id}", "type": media_type}
             async with session.get(f"{API_URL}/download", params=params) as resp:
                 if resp.status != 200:
+                    LOGGER.error(f"Shruti API Error: Status {resp.status}")
                     return None
                 data = await resp.json()
                 token = data.get("download_token")
                 if not token:
                     return None
 
-            # Step 2: Download with Redirect Handling
+            # Step 2: Download
             stream_url = f"{API_URL}/stream/{video_id}?type={media_type}&token={token}"
             async with session.get(stream_url, allow_redirects=True) as file_resp:
                 if file_resp.status == 200:
@@ -83,17 +90,13 @@ async def download_from_api(link: str, media_type: str) -> Optional[str]:
                     if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
                         return file_path
     except Exception as e:
-        LOGGER.error(f"API Downloader Error: {e}")
-        if os.path.exists(file_path):
-            try: os.remove(file_path)
-            except: pass
+        LOGGER.error(f"API Downloader Failure: {e}")
     return None
 
 class YouTubeAPI:
     def __init__(self):
         self.base = "https://www.youtube.com/watch?v="
         self.listbase = "https://youtube.com/playlist?list="
-        self.regex = r"(?:youtube\.com|youtu\.be)"
 
     async def url(self, message_1: Message) -> Optional[str]:
         messages = [message_1]
@@ -137,20 +140,19 @@ class YouTubeAPI:
         videoid: bool = False,
         **kwargs
     ) -> Tuple[Optional[str], bool]:
-        """Main Download function with Security Fallback"""
+        """Main Download function with System Fallback"""
         if videoid:
             link = self.base + link
         
-        # Priority 1: Custom API Downloader
+        # Priority 1: Shruti API
         m_type = "video" if video else "audio"
         downloaded_file = await download_from_api(link, m_type)
         if downloaded_file:
             return downloaded_file, True
 
-        # Priority 2: Security Fallback (yt-dlp)
+        # Priority 2: yt-dlp Local (with Cookies & Headers)
         clean_id = get_clean_id(link) or "temp_file"
         ext = "mp4" if video else "mp3"
-        # Security: Absolute path verification
         output_path = os.path.join(DOWNLOAD_DIR, f"{clean_id}.%(ext)s")
         
         ytdl_opts = {
@@ -159,7 +161,14 @@ class YouTubeAPI:
             "quiet": True,
             "no_warnings": True,
             "nocheckcertificate": True,
+            "http_headers": HEADERS,
+            "geo_bypass": True,
         }
+
+        # Agar cookies.txt maujood hai to use karein
+        if os.path.exists(COOKIE_FILE):
+            ytdl_opts["cookiefile"] = COOKIE_FILE
+            LOGGER.info("Using cookies.txt for yt-dlp")
 
         if not video:
             ytdl_opts["postprocessors"] = [{
@@ -175,10 +184,7 @@ class YouTubeAPI:
                     info = ydl.extract_info(link, download=True)
                     return ydl.prepare_filename(info)
 
-            # File ko download karein (Threaded taaki bot freeze na ho)
             raw_path = await loop.run_in_executor(None, yt_dlp_process)
-            
-            # Post-processing ke baad actual extension check karein
             final_path = raw_path.rsplit('.', 1)[0] + f".{ext}"
             
             if os.path.exists(final_path):
@@ -187,7 +193,7 @@ class YouTubeAPI:
                 return raw_path, True
                 
         except Exception as e:
-            LOGGER.error(f"System Download Failure: {e}")
+            LOGGER.error(f"Local Download Failure: {e}")
         
         return None, False
 
@@ -215,7 +221,10 @@ class YouTubeAPI:
 
     async def formats(self, link: str, videoid: bool = None):
         if videoid: link = self.base + link
-        ytdl_opts = {"quiet": True}
+        ytdl_opts = {"quiet": True, "http_headers": HEADERS}
+        if os.path.exists(COOKIE_FILE):
+            ytdl_opts["cookiefile"] = COOKIE_FILE
+
         try:
             with yt_dlp.YoutubeDL(ytdl_opts) as ydl:
                 r = await asyncio.to_thread(ydl.extract_info, link, download=False)
