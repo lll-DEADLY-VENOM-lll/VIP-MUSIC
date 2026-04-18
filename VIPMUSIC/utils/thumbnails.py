@@ -1,32 +1,35 @@
 #
-# Copyright (C) 2024 by THE-VIP-BOY-OP@Github
-# Cleaned and Optimized version
-#FUCK YOU
+# Copyright (C) 2024 by THE-VIP-BOY-OP@Github, < https://github.com/THE-VIP-BOY-OP >.
+#
+# This file is part of < https://github.com/THE-VIP-BOY-OP/VIP-MUSIC > project,
+# and is released under the MIT License .
+#
 
 from youtubesearchpython.__future__ import VideosSearch
 from config import YOUTUBE_IMG_URL
 
-async def get_thumb(videoid):
-    """
-    YouTube Video ID se official thumbnail nikalne ke liye.
-    Ismein search library ka use kiya gaya hai.
-    """
+async def gen_thumb(videoid):
     try:
         query = f"https://www.youtube.com/watch?v={videoid}"
         results = VideosSearch(query, limit=1)
         res = await results.next()
-        
-        if res["result"]:
-            # Pehla result ka high resolution thumbnail nikalna
-            thumbnail = res["result"][0]["thumbnails"][0]["url"].split("?")[0]
-            return thumbnail
-        return YOUTUBE_IMG_URL
+        for result in res["result"]:
+            thumbnail = result["thumbnails"][0]["url"].split("?")[0]
+        return thumbnail
     except Exception:
         return YOUTUBE_IMG_URL
 
-# Agar aapko fast kaam chahiye bina search kiye:
-def get_official_thumb(videoid):
-    """
-    Direct YouTube server se high quality thumbnail link generate karne ke liye (Fastest Method)
-    """
-    return f"https://img.youtube.com/vi/{videoid}/maxresdefault.jpg"
+async def gen_qthumb(vidid):
+    try:
+        query = f"https://www.youtube.com/watch?v={vidid}"
+        results = VideosSearch(query, limit=1)
+        res = await results.next()
+        for result in res["result"]:
+            thumbnail = result["thumbnails"][0]["url"].split("?")[0]
+        return thumbnail
+    except Exception:
+        return YOUTUBE_IMG_URL
+
+# Yeh niche wale functions bhi add kar diye hain taaki koi aur error na aaye
+async def get_thumb(videoid):
+    return await gen_thumb(videoid)
