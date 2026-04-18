@@ -8,7 +8,7 @@ import yt_dlp
 from typing import Union, Optional, Tuple
 from pyrogram.enums import MessageEntityType
 from pyrogram.types import Message
-from py_yt import VideosSearch, Playlist
+from youtubesearchpython.__future__ import VideosSearch, Playlist
 from ShrutiMusic.utils.formatters import time_to_seconds
 from ShrutiMusic import LOGGER
 
