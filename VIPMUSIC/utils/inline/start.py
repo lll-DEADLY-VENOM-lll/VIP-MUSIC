@@ -1,74 +1,42 @@
 from pyrogram.types import InlineKeyboardButton
 
 import config
-from config import SUPPORT_GROUP
 from VIPMUSIC import app
 
 
-def start_pannel(_):
+def start_panel(_):
     buttons = [
         [
             InlineKeyboardButton(
-                text="💠 𝐀𝙳𝙳 𝙼𝙴 𝙸𝙽 𝙽𝙴𝚆 𝙶𝚁𝙾𝚄𝙿𝚂 💠",
+                text="➕ ᴀᴅᴅ ᴍᴇ ᴛᴏ ʏᴏᴜʀ ɢʀᴏᴜᴘ ➕",
                 url=f"https://t.me/{app.username}?startgroup=true",
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text="⚜️ ʟᴀɴɢᴜᴀɢᴇ",
+                callback_data="language"
+            ),
+            InlineKeyboardButton(
+                text="🛡 ᴘᴏʟɪᴄʏ",
+                callback_data="policy"
             ),
         ],
         [
-            InlineKeyboardButton(text="۞ 𝐇𝙴𝙻𝙿 ۞", callback_data="settings_back_helper"),
-            InlineKeyboardButton(text="☢ 𝐒𝙴𝚃 ☢", callback_data="settings_helper"),
-        ],
-        [
-            InlineKeyboardButton(text="✡ 𝐆𝚁𝙾𝚄𝙿 ✡", url=config.SUPPORT_GROUP),
-        ],
-    ]
-    return buttons
-
-
-def private_panel(_):
-    buttons = [
-        [
             InlineKeyboardButton(
-                text="💠 𝐀𝙳𝙳 𝙼𝙴 𝙸𝙽 𝙽𝙴𝚆 𝙶𝚁𝙾𝚄𝙿𝚂 💠",
-                url=f"https://t.me/{app.username}?startgroup=true",
-            )
-        ],
-        [
-            InlineKeyboardButton(text="𝐆𝚁𝙾𝚄𝙿✨", url=config.SUPPORT_GROUP),
-            InlineKeyboardButton(text="𝐌ᴏʀᴇ🥀", url=config.SUPPORT_CHANNEL),
-        ],
-        [
-            InlineKeyboardButton(
-                text="۞ 𝐅𝙴𝙰𝚃𝚄𝚁𝙴𝚂 ۞", callback_data="settings_back_helper"
-            )
-        ],
-    ]
-    return buttons
-
-
-def alive_panel(_):
-    buttons = [
-        [
-            InlineKeyboardButton(
-                text="✿︎ ᴀᴅᴅ ᴍᴇ ✿︎", url=f"https://t.me/{app.username}?startgroup=true"
+                text="✉️ ᴄʜᴀɴɴᴇʟ",
+                url=config.SUPPORT_CHANNEL
             ),
-            InlineKeyboardButton(text=_["S_B_3"], url=f"{SUPPORT_GROUP}"),
+            InlineKeyboardButton(
+                text="✉️ sᴜᴘᴘᴏʀᴛ",
+                url=config.SUPPORT_GROUP
+            ),
         ],
-    ]
-    return buttons
-
-
-def music_start_panel(_):
-    buttons = [
         [
             InlineKeyboardButton(
-                text="💠 ᴀᴅᴅ ᴍᴇ ɪɴ ɴᴇᴡ ɢʀᴏᴜᴘ 💠",
-                url=f"https://t.me/{app.username}?startgroup=true",
+                text="🔎 ʜᴏᴡ ᴛᴏ ᴜsᴇ? ᴄᴏᴍᴍᴀɴᴅ ᴍᴇɴᴜ",
+                callback_data="help_menu"
             )
         ],
-        [
-            InlineKeyboardButton(text="ᴀʙᴏᴜᴛ 📝", callback_data="about"),
-            InlineKeyboardButton(text="sᴜᴘᴘᴏʀᴛ 🥀", callback_data="support"),
-        ],
-        [InlineKeyboardButton(text="۞ ғᴇᴀᴛᴜʀᴇ ۞", callback_data="feature")],
     ]
     return buttons
