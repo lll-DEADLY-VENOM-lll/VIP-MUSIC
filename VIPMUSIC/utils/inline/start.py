@@ -1,46 +1,64 @@
-from pyrogram.types import InlineKeyboardButton
-
+ from pyrogram.types import InlineKeyboardButton
 import config
 from VIPMUSIC import app
 
-# Yahan humne 'start_panel' ko 'private_panel' mein badal diya hai taki error fix ho jaye
-def private_panel(_):
+def start_pannel(_):
     buttons = [
         [
             InlineKeyboardButton(
-                text="➕ ᴀᴅᴅ ᴍᴇ ᴛᴏ ʏᴏᴜʀ ɢʀᴏᴜᴘ ➕",
+                text="➕ ADD ME TO YOUR GROUP ➕",
                 url=f"https://t.me/{app.username}?startgroup=true",
-            )
-        ],
-        [
-            InlineKeyboardButton(
-                text="⚜️ ʟᴀɴɢᴜᴀɢᴇ",
-                callback_data="language"
-            ),
-            InlineKeyboardButton(
-                text="🛡 ᴘᴏʟɪᴄʏ",
-                callback_data="policy"
             ),
         ],
         [
-            InlineKeyboardButton(
-                text="✉️ ᴄʜᴀɴɴᴇʟ",
-                url=config.SUPPORT_CHANNEL
-            ),
-            InlineKeyboardButton(
-                text="✉️ sᴜᴘᴘᴏʀᴛ",
-                url=config.SUPPORT_GROUP
-            ),
+            InlineKeyboardButton(text="⚜️ LANGUAGE", callback_data="LG"),
+            InlineKeyboardButton(text="🛡️ POLICY", url=config.UPSTREAM_REPO),
+        ],
+        [
+            InlineKeyboardButton(text="📩 CHANNEL ↗", url=config.SUPPORT_CHANNEL),
+            InlineKeyboardButton(text="📩 SUPPORT ↗", url=config.SUPPORT_CHAT),
         ],
         [
             InlineKeyboardButton(
-                text="🔎 ʜᴏᴡ ᴛᴏ ᴜsᴇ? ᴄᴏᴍᴍᴀɴᴅ ᴍᴇɴᴜ",
-                callback_data="help_menu"
-            )
+                text="🔍 HOW TO USE? COMMAND MENU", callback_data="settings_back_helper"
+            ),
         ],
     ]
     return buttons
 
-# Ye extra function hai taaki agar kahin 'start_panel' use ho raha ho toh error na aaye
-def start_panel(_):
-    return private_panel(_)
+def private_panel(_):
+    buttons = [
+        [
+            InlineKeyboardButton(
+                text="➕ ADD ME TO YOUR GROUP ➕",
+                url=f"https://t.me/{app.username}?startgroup=true",
+            ),
+        ],
+        [
+            InlineKeyboardButton(text="⚜️ LANGUAGE", callback_data="LG"),
+            InlineKeyboardButton(text="🛡️ POLICY", url=config.UPSTREAM_REPO),
+        ],
+        [
+            InlineKeyboardButton(text="📩 CHANNEL ↗", url=config.SUPPORT_CHANNEL),
+            InlineKeyboardButton(text="📩 SUPPORT ↗", url=config.SUPPORT_CHAT),
+        ],
+        [
+            InlineKeyboardButton(
+                text="🔍 HOW TO USE? COMMAND MENU", callback_data="settings_back_helper"
+            ),
+        ],
+    ]
+    return buttons
+
+def alive_panel(_):
+    buttons = [
+        [
+            InlineKeyboardButton(text="⚜️ LANGUAGE", callback_data="LG"),
+            InlineKeyboardButton(text="🛡️ POLICY", url=config.UPSTREAM_REPO),
+        ],
+        [
+            InlineKeyboardButton(text="📩 SUPPORT ↗", url=config.SUPPORT_CHAT),
+            InlineKeyboardButton(text="➕ ADD ME ➕", url=f"https://t.me/{app.username}?startgroup=true"),
+        ],
+    ]
+    return buttons
