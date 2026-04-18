@@ -9,8 +9,8 @@ from typing import Union, Optional, Tuple
 from pyrogram.enums import MessageEntityType
 from pyrogram.types import Message
 from youtubesearchpython.__future__ import VideosSearch, Playlist
-from ShrutiMusic.utils.formatters import time_to_seconds
-from ShrutiMusic import LOGGER
+from VIPMUSIC.utils.formatters import time_to_seconds
+from VIPMUSIC import LOGGER
 
 # --- SECURITY 1: SENSITIVE DATA REDACTION ---
 class SensitiveDataFilter(logging.Filter):
