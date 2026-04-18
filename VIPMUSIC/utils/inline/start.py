@@ -15,8 +15,8 @@ def start_pannel(_):
             InlineKeyboardButton(text="🛡️ ᴘᴏʟɪᴄʏ", url=config.UPSTREAM_REPO),
         ],
         [
-            InlineKeyboardButton(text="📩 ᴄʜᴀɴɴᴇʟ ↗", url=config.SUPPORT_CHANNEL),
-            InlineKeyboardButton(text="📩 ꜱᴜᴘᴘᴏʀᴛ ↗", url=config.SUPPORT_CHAT),
+            InlineKeyboardButton(text="📩 ᴄʜᴀɴɴᴇʟ", url=config.SUPPORT_CHANNEL),
+            InlineKeyboardButton(text="📩 ꜱᴜᴘᴘᴏʀᴛ", url=config.SUPPORT_CHAT),
         ],
         [
             InlineKeyboardButton(
