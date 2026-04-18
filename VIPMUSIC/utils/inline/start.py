@@ -1,4 +1,4 @@
- from pyrogram.types import InlineKeyboardButton
+from pyrogram.types import InlineKeyboardButton
 import config
 from VIPMUSIC import app
 
