@@ -24,50 +24,12 @@ from VIPMUSIC.utils.database import (
 from VIPMUSIC.utils.decorators.language import LanguageStart
 from VIPMUSIC.utils.formatters import get_readable_time
 from VIPMUSIC.utils.functions import MARKDOWN, WELCOMEHELP
+
+# THE FIX: Import specifically from the .start file inside inline folder
+from VIPMUSIC.utils.inline.start import alive_panel, private_panel, start_pannel
+
 from .help import paginate_modules
 
-# --- BUTTON LAYOUT (AS PER YOUR IMAGE) ---
-def private_panel(_):
-    buttons = [
-        [
-            InlineKeyboardButton(
-                text="➕ ADD ME TO YOUR GROUP ➕",
-                url=f"https://t.me/{app.username}?startgroup=true",
-            ),
-        ],
-        [
-            InlineKeyboardButton(text="⚜️ LANGUAGE", callback_data="LG"),
-            InlineKeyboardButton(text="🛡️ POLICY", url=config.UPSTREAM_REPO),
-        ],
-        [
-            InlineKeyboardButton(text="📩 CHANNEL ↗", url=config.SUPPORT_CHANNEL),
-            InlineKeyboardButton(text="📩 SUPPORT ↗", url=config.SUPPORT_CHAT),
-        ],
-        [
-            InlineKeyboardButton(
-                text="🔍 HOW TO USE? COMMAND MENU", callback_data="settings_back_helper"
-            ),
-        ],
-    ]
-    return buttons
-
-def alive_panel(_):
-    buttons = [
-        [
-            InlineKeyboardButton(text="⚜️ LANGUAGE", callback_data="LG"),
-            InlineKeyboardButton(text="🛡️ POLICY", url=config.UPSTREAM_REPO),
-        ],
-        [
-            InlineKeyboardButton(text="📩 SUPPORT ↗", url=config.SUPPORT_CHAT),
-            InlineKeyboardButton(text="➕ ADD ME ➕", url=f"https://t.me/{app.username}?startgroup=true"),
-        ],
-    ]
-    return buttons
-
-def start_pannel(_):
-    return private_panel(_)
-
-# --- LOGIC ---
 loop = asyncio.get_running_loop()
 
 def get_log_id():
@@ -109,14 +71,10 @@ async def start_comm(client, message: Message, _):
             photo=config.START_IMG_URL,
             caption=_["start_2"].format(message.from_user.mention, app.mention),
             reply_markup=InlineKeyboardMarkup(out),
-            message_effect_id="5311823902341673323" # Premium Heart Effect
+            message_effect_id="5311823902341673323"
         )
     except:
-        await message.reply_photo(
-            photo=config.START_IMG_URL, 
-            caption=_["start_2"].format(message.from_user.mention, app.mention), 
-            reply_markup=InlineKeyboardMarkup(out)
-        )
+        await message.reply_photo(photo=config.START_IMG_URL, caption=_["start_2"].format(message.from_user.mention, app.mention), reply_markup=InlineKeyboardMarkup(out))
 
     if await is_on_off(config.LOG):
         try: await app.send_message(get_log_id(), f"**#NewUser**\n\n{message.from_user.mention} started the bot.")
@@ -144,10 +102,7 @@ async def welcome(client, message: Message):
             _ = get_string(language)
             if member.id == app.id:
                 userbot = await get_assistant(chat_id)
-                await message.reply_text(
-                    _["start_2"].format(app.mention, userbot.username, userbot.id), 
-                    reply_markup=InlineKeyboardMarkup(start_pannel(_))
-                )
+                await message.reply_text(_["start_2"].format(app.mention, userbot.username, userbot.id), reply_markup=InlineKeyboardMarkup(start_pannel(_)))
         except: pass
 
 __MODULE__ = "Bot"
