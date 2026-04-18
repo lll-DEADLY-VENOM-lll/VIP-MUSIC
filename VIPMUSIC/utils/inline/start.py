@@ -3,8 +3,8 @@ from pyrogram.types import InlineKeyboardButton
 import config
 from VIPMUSIC import app
 
-
-def start_panel(_):
+# Yahan humne 'start_panel' ko 'private_panel' mein badal diya hai taki error fix ho jaye
+def private_panel(_):
     buttons = [
         [
             InlineKeyboardButton(
@@ -40,3 +40,7 @@ def start_panel(_):
         ],
     ]
     return buttons
+
+# Ye extra function hai taaki agar kahin 'start_panel' use ho raha ho toh error na aaye
+def start_panel(_):
+    return private_panel(_)
