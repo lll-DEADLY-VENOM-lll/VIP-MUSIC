@@ -1,16 +1,11 @@
 import asyncio
-
 from pyrogram import filters
 from pyrogram.enums import ChatMemberStatus
-from pyrogram.errors import InviteRequestSent
-
+from pyrogram.errors import InviteRequestSent, UserAlreadyParticipant, UserNotParticipant
 from VIPMUSIC import app
 from VIPMUSIC.misc import SUDOERS
 from VIPMUSIC.utils.database import get_assistant
 from VIPMUSIC.utils.vip_ban import admin_filter
-
-links = {}
-
 
 @app.on_message(
     filters.group
@@ -19,190 +14,96 @@ links = {}
 )
 async def join_group(client, message):
     chat_id = message.chat.id
-    userbot = await get_assistant(message.chat.id)
+    userbot = await get_assistant(chat_id)
     userbot_id = userbot.id
-    done = await message.reply("**ᴘʟᴇᴀsᴇ ᴡᴀɪᴛ ɪɴᴠɪᴛɪɴɢ ᴀssɪsᴛᴀɴᴛ**...")
-    await asyncio.sleep(1)
-    # Get chat member object
-    chat_member = await app.get_chat_member(chat_id, app.id)
+    done = await message.reply("**ᴘʟᴇᴀsᴇ ᴡᴀɪᴛ... ɪɴᴠɪᴛɪɴɢ ᴀssɪsᴛᴀɴᴛ**")
 
-    # Condition 1: Group username is present, bot is not admin
-    if (
-        message.chat.username
-        and not chat_member.status == ChatMemberStatus.ADMINISTRATOR
-    ):
+    # Bot ki permissions check karein
+    bot_member = await app.get_chat_member(chat_id, app.id)
+    is_bot_admin = bot_member.status == ChatMemberStatus.ADMINISTRATOR
+
+    # Check assistant status
+    try:
+        ubot_member = await app.get_chat_member(chat_id, userbot_id)
+        if ubot_member.status in [ChatMemberStatus.MEMBER, ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
+            return await done.edit_text("**✅ ᴀssɪsᴛᴀɴᴛ ᴀʟʀᴇᴀᴅʏ ɪɴ ᴛʜɪs ᴄʜᴀᴛ.**")
+        
+        if ubot_member.status in [ChatMemberStatus.BANNED, ChatMemberStatus.RESTRICTED]:
+            if not is_bot_admin:
+                return await done.edit_text("**❌ ᴀssɪsᴛᴀɴᴛ ɪs ʙᴀɴɴᴇᴅ. ᴘʟᴇᴀsᴇ ᴜɴʙᴀɴ ᴍᴀɴᴜᴀʟʟʏ ᴏʀ ɢɪᴠᴇ ᴍᴇ ʙᴀɴ ᴘᴏᴡᴇʀ.**")
+            await app.unban_chat_member(chat_id, userbot_id)
+            await asyncio.sleep(1)
+    except UserNotParticipant:
+        pass
+    except Exception as e:
+        return await done.edit_text(f"**Error:** `{e}`")
+
+    # Joining Logic
+    if message.chat.username: # Public Group
         try:
             await userbot.join_chat(message.chat.username)
-            await done.edit_text("**✅ ᴀssɪsᴛᴀɴᴛ ᴊᴏɪɴᴇᴅ.**")
-
+            await done.edit_text("**✅ ᴀssɪsᴛᴀɴᴛ ᴊᴏɪɴᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ.**")
+        except UserAlreadyParticipant:
+            await done.edit_text("**✅ ᴀssɪsᴛᴀɴᴛ ᴀʟʀᴇᴀᴅʏ ᴊᴏɪɴᴇᴅ.**")
         except InviteRequestSent:
             try:
                 await app.approve_chat_join_request(chat_id, userbot_id)
-            except Exception:
-                pass
-        except Exception as e:
-            await done.edit_text("**ɪ ɴᴇᴇᴅ ᴀᴅᴍɪɴ ᴘᴏᴡᴇʀ ᴛᴏ ᴜɴʙᴀɴ ɪɴᴠɪᴛᴇ ᴍʏ ᴀssɪsᴛᴀɴᴛ!**")
+                await done.edit_text("**✅ ᴀssɪsᴛᴀɴᴛ ᴊᴏɪɴ ʀᴇǫᴜᴇsᴛ ᴀᴘᴘʀᴏᴠᴇᴅ.**")
+            except:
+                await done.edit_text("**📩 ᴊᴏɪɴ ʀᴇǫᴜᴇsᴛ sᴇɴᴛ. ᴘʟᴇᴀsᴇ ᴀᴘᴘʀᴏᴠᴇ ɪᴛ.**")
+        except Exception:
+            await done.edit_text("**❌ ᴀssɪsᴛᴀɴᴛ ᴄᴏᴜʟᴅ ɴᴏᴛ ᴊᴏɪɴ. ᴍᴀᴋᴇ sᴜʀᴇ ɪ'ᴍ ᴀᴅᴍɪɴ.**")
 
-    # Condition 2: Group username is present, bot is admin, and Userbot is not banned
-    if message.chat.username and chat_member.status == ChatMemberStatus.ADMINISTRATOR:
+    else: # Private Group
+        if not is_bot_admin:
+            return await done.edit_text("**❌ ɪ ɴᴇᴇᴅ 'ɪɴᴠɪᴛᴇ ᴜsᴇʀs' ᴀᴅᴍɪɴ ᴘᴏᴡᴇʀ ᴛᴏ ɪɴᴠɪᴛᴇ ᴍʏ ᴀssɪsᴛᴀɴᴛ.**")
+        
         try:
-            await userbot.join_chat(message.chat.username)
-            await done.edit_text("**✅ ᴀssɪsᴛᴀɴᴛ ᴊᴏɪɴᴇᴅ.**")
+            invite_link = await app.create_chat_invite_link(chat_id)
+            await userbot.join_chat(invite_link.invite_link)
+            await done.edit_text("**✅ ᴀssɪsᴛᴀɴᴛ ᴊᴏɪɴᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ.**")
+        except UserAlreadyParticipant:
+            await done.edit_text("**✅ ᴀssɪsᴛᴀɴᴛ ᴀʟʀᴇᴀᴅʏ ᴊᴏɪɴᴇᴅ.**")
         except InviteRequestSent:
             try:
                 await app.approve_chat_join_request(chat_id, userbot_id)
-            except Exception:
-                pass
+                await done.edit_text("**✅ ᴀssɪsᴛᴀɴᴛ ᴊᴏɪɴ ʀᴇǫᴜᴇsᴛ ᴀᴘᴘʀᴏᴠᴇᴅ.**")
+            except:
+                await done.edit_text("**📩 ᴊᴏɪɴ ʀᴇǫᴜᴇsᴛ sᴇɴᴛ. ᴘʟᴇᴀsᴇ ᴀᴘᴘʀᴏᴠᴇ ɪᴛ.**")
         except Exception as e:
-            await done.edit_text(str(e))
-
-    # Condition 3: Group username is not present/group is private, bot is admin and Userbot is banned
-    if message.chat.username and chat_member.status == ChatMemberStatus.ADMINISTRATOR:
-        userbot_member = await app.get_chat_member(chat_id, userbot.id)
-        if userbot_member.status in [
-            ChatMemberStatus.BANNED,
-            ChatMemberStatus.RESTRICTED,
-        ]:
-            try:
-                await app.unban_chat_member(chat_id, userbot.id)
-                await done.edit_text("**ᴀssɪsᴛᴀɴᴛ ɪs ᴜɴʙᴀɴɴɪɴɢ...**")
-                await userbot.join_chat(message.chat.username)
-                await done.edit_text(
-                    "**ᴀssɪsᴛᴀɴᴛ ᴡᴀs ʙᴀɴɴᴇᴅ, ʙᴜᴛ ɴᴏᴡ ᴜɴʙᴀɴɴᴇᴅ, ᴀɴᴅ ᴊᴏɪɴᴇᴅ ᴄʜᴀᴛ ✅**"
-                )
-            except InviteRequestSent:
-                try:
-                    await app.approve_chat_join_request(chat_id, userbot_id)
-                except Exception:
-                    pass
-            except Exception as e:
-                await done.edit_text(
-                    "**ғᴀɪʟᴇᴅ ᴛᴏ ᴊᴏɪɴ, ᴘʟᴇᴀsᴇ ɢɪᴠᴇ ʙᴀɴ ᴘᴏᴡᴇʀ ᴀɴᴅ ɪɴᴠɪᴛᴇ ᴜsᴇʀ ᴘᴏᴡᴇʀ ᴏʀ ᴜɴʙᴀɴ ᴀssɪsᴛᴀɴᴛ ᴍᴀɴᴜᴀʟʟʏ ᴛʜᴇɴ ᴛʀʏ ᴀɢᴀɪɴ ʙʏ /userbotjoin**"
-                )
-        return
-
-    # Condition 4: Group username is not present/group is private, bot is not admin
-    if (
-        not message.chat.username
-        and not chat_member.status == ChatMemberStatus.ADMINISTRATOR
-    ):
-        await done.edit_text("**ɪ ɴᴇᴇᴅ ᴀᴅᴍɪɴ ᴘᴏᴡᴇʀ ᴛᴏ ɪɴᴠɪᴛᴇ ᴍʏ ᴀssɪsᴛᴀɴᴛ.**")
-
-    # Condition 5: Group username is not present/group is private, bot is admin
-    if (
-        not message.chat.username
-        and chat_member.status == ChatMemberStatus.ADMINISTRATOR
-    ):
-        try:
-            try:
-                userbot_member = await app.get_chat_member(chat_id, userbot.id)
-                if userbot_member.status not in [
-                    ChatMemberStatus.BANNED,
-                    ChatMemberStatus.RESTRICTED,
-                ]:
-                    await done.edit_text("**✅ ᴀssɪsᴛᴀɴᴛ ᴀʟʀᴇᴀᴅʏ ᴊᴏɪɴᴇᴅ.**")
-                    return
-            except Exception as e:
-                await done.edit_text("**ᴘʟᴇᴀsᴇ ᴡᴀɪᴛ ɪɴᴠɪᴛɪɴɢ ᴀssɪsᴛᴀɴᴛ**.")
-                await done.edit_text("**ᴘʟᴇᴀsᴇ ᴡᴀɪᴛ ɪɴᴠɪᴛɪɴɢ ᴀssɪsᴛᴀɴᴛ**...")
-                invite_link = await app.create_chat_invite_link(
-                    chat_id, expire_date=None
-                )
-                await asyncio.sleep(2)
-                await userbot.join_chat(invite_link.invite_link)
-                await done.edit_text("**✅ ᴀssɪsᴛᴀɴᴛ ᴊᴏɪɴᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ.**")
-        except InviteRequestSent:
-            try:
-                await app.approve_chat_join_request(chat_id, userbot_id)
-            except Exception:
-                pass
-        except Exception as e:
-            await done.edit_text(
-                f"**➻ ᴀᴄᴛᴜᴀʟʟʏ ɪ ғᴏᴜɴᴅ ᴛʜᴀᴛ ᴍʏ ᴀssɪsᴛᴀɴᴛ ʜᴀs ɴᴏᴛ ᴊᴏɪɴ ᴛʜɪs ɢʀᴏᴜᴘ ᴀɴᴅ ɪ ᴀᴍ ɴᴏᴛ ᴀʙʟᴇ ᴛᴏ ɪɴᴠɪᴛᴇ ᴍʏ ᴀssɪsᴛᴀɴᴛ ʙᴇᴄᴀᴜsᴇ [ ɪ ᴅᴏɴᴛ ʜᴀᴠᴇ  ɪɴᴠɪᴛᴇ ᴜsᴇʀ ᴀᴅᴍɪɴ ᴘᴏᴡᴇʀ ] sᴏ ᴘʟᴇᴀsᴇ ᴘʀᴏᴠɪᴅᴇ ᴍᴇ ɪɴᴠɪᴛᴇ ᴜsᴇʀs ᴀᴅᴍɪɴ ᴘᴏᴡᴇʀ ᴛʜᴇɴ ᴛʀʏ ᴀɢᴀɪɴ ʙʏ- /userbotjoin.**\n\n**➥ ɪᴅ »** @{userbot.username}"
-            )
-
-    # Condition 6: Group username is not present/group is private, bot is admin and Userbot is banned
-    if (
-        not message.chat.username
-        and chat_member.status == ChatMemberStatus.ADMINISTRATOR
-    ):
-        userbot_member = await app.get_chat_member(chat_id, userbot.id)
-        if userbot_member.status in [
-            ChatMemberStatus.BANNED,
-            ChatMemberStatus.RESTRICTED,
-        ]:
-            try:
-                await app.unban_chat_member(chat_id, userbot.id)
-                await done.edit_text(
-                    "**ᴀssɪsᴛᴀɴᴛ ɪs ᴜɴʙᴀɴɴᴇᴅ**\n**ᴛʏᴘᴇ ᴀɢᴀɪɴ:- /userbotjoin.**"
-                )
-                invite_link = await app.create_chat_invite_link(
-                    chat_id, expire_date=None
-                )
-                await asyncio.sleep(2)
-                await userbot.join_chat(invite_link.invite_link)
-                await done.edit_text(
-                    "**ᴀssɪsᴛᴀɴᴛ ᴡᴀs ʙᴀɴɴᴇᴅ, ɴᴏᴡ ᴜɴʙᴀɴɴᴇᴅ, ᴀɴᴅ ᴊᴏɪɴᴇᴅ ᴄʜᴀᴛ✅**"
-                )
-            except InviteRequestSent:
-                try:
-                    await app.approve_chat_join_request(chat_id, userbot_id)
-                except Exception:
-                    pass
-
-            except Exception as e:
-                await done.edit_text(
-                    f"**➻ ᴀᴄᴛᴜᴀʟʟʏ ɪ ғᴏᴜɴᴅ ᴛʜᴀᴛ ᴍʏ ᴀssɪsᴛᴀɴᴛ ɪs ʙᴀɴɴᴇᴅ ɪɴ ᴛʜɪs ɢʀᴏᴜᴘ ᴀɴᴅ ɪ ᴀᴍ ɴᴏᴛ ᴀʙʟᴇ ᴛᴏ ᴜɴʙᴀɴ ᴍʏ ᴀssɪsᴛᴀɴᴛ ʙᴇᴄᴀᴜsᴇ [ ɪ ᴅᴏɴᴛ ʜᴀᴠᴇ  ʙᴀɴ ᴘᴏᴡᴇʀ ] sᴏ ᴘʟᴇᴀsᴇ ᴘʀᴏᴠɪᴅᴇ ᴍᴇ ʙᴀɴ ᴘᴏᴡᴇʀ ᴏʀ ᴜɴʙᴀɴ ᴍʏ ᴀssɪsᴛᴀɴᴛ ᴍᴀɴᴜᴀʟʟʏ ᴛʜᴇɴ ᴛʀʏ ᴀɢᴀɪɴ ʙʏ- /userbotjoin.**\n\n**➥ ɪᴅ »** @{userbot.username}"
-                )
-        return
-
+            await done.edit_text(f"**❌ ғᴀɪʟᴇᴅ ᴛᴏ ɪɴᴠɪᴛᴇ ᴀssɪsᴛᴀɴᴛ.**\n**Error:** `{e}`")
 
 @app.on_message(filters.command("userbotleave") & filters.group & admin_filter)
 async def leave_one(client, message):
     try:
         userbot = await get_assistant(message.chat.id)
         await userbot.leave_chat(message.chat.id)
-        await app.send_message(
-            message.chat.id, "**✅ ᴜsᴇʀʙᴏᴛ sᴜᴄᴄᴇssғᴜʟʟʏ ʟᴇғᴛ ᴛʜɪs Chat.**"
-        )
+        await message.reply("**✅ ᴀssɪsᴛᴀɴᴛ ʟᴇғᴛ ᴛʜɪs ᴄʜᴀᴛ.**")
     except Exception as e:
-        print(e)
+        await message.reply(f"**Error:** `{e}`")
 
-
-@app.on_message(filters.command(["leaveall", f"leaveall@{app.username}"]) & SUDOERS)
+@app.on_message(filters.command(["leaveall"]) & SUDOERS)
 async def leave_all(client, message):
-    if message.from_user.id not in SUDOERS:
-        return
-
+    status_msg = await message.reply("🔄 **ᴀssɪsᴛᴀɴᴛ ʟᴇᴀᴠɪɴɢ ᴀʟʟ ᴄʜᴀᴛs...**")
     left = 0
     failed = 0
-    lol = await message.reply("🔄 **ᴜsᴇʀʙᴏᴛ** ʟᴇᴀᴠɪɴɢ ᴀʟʟ ᴄʜᴀᴛs !")
-    try:
-        userbot = await get_assistant(message.chat.id)
-        async for dialog in userbot.get_dialogs():
-            if dialog.chat.id == -1001733534088:
-                continue
-            try:
-                await userbot.leave_chat(dialog.chat.id)
-                left += 1
-                await lol.edit(
-                    f"**ᴜsᴇʀʙᴏᴛ ʟᴇᴀᴠɪɴɢ ᴀʟʟ ɢʀᴏᴜᴘ...**\n\n**ʟᴇғᴛ:** {left} ᴄʜᴀᴛs.\n**ғᴀɪʟᴇᴅ:** {failed} ᴄʜᴀᴛs."
-                )
-            except BaseException:
-                failed += 1
-                await lol.edit(
-                    f"**ᴜsᴇʀʙᴏᴛ ʟᴇᴀᴠɪɴɢ...**\n\n**ʟᴇғᴛ:** {left} chats.\n**ғᴀɪʟᴇᴅ:** {failed} chats."
-                )
-            await asyncio.sleep(3)
-    finally:
-        await app.send_message(
-            message.chat.id,
-            f"**✅ ʟᴇғᴛ ғʀᴏᴍ:* {left} chats.\n**❌ ғᴀɪʟᴇᴅ ɪɴ:** {failed} chats.",
-        )
-
+    userbot = await get_assistant(message.chat.id)
+    
+    async for dialog in userbot.get_dialogs():
+        try:
+            await userbot.leave_chat(dialog.chat.id)
+            left += 1
+            if left % 5 == 0: # Status update every 5 chats
+                await status_msg.edit(f"**ʟᴇᴀᴠɪɴɢ...**\n\n✅ **ʟᴇғᴛ:** `{left}`\n❌ **ғᴀɪʟᴇᴅ:** `{failed}`")
+        except Exception:
+            failed += 1
+        await asyncio.sleep(1) # Flood wait avoid karne ke liye
+    
+    await status_msg.edit(f"**✅ ᴘʀᴏᴄᴇss ᴄᴏᴍᴘʟᴇᴛᴇᴅ!**\n\n**ʟᴇғᴛ:** `{left}` ᴄʜᴀᴛs\n**ғᴀɪʟᴇᴅ:** `{failed}` ᴄʜᴀᴛs")
 
 __MODULES__ = "Userbotjoin"
 __HELP__ = """
-/userbotjoin: Invites the userbot to the current group.
-/userbotleave: Makes the userbot leave the current group.
-/leaveall: Makes the userbot leave all groups where it is present (accessible only to SUDOERS)."""
+/userbotjoin - Assistant ko group mein bulaye.
+/userbotleave - Assistant ko group se bhagaye.
+/leaveall - Assistant ko saare groups se nikaale (Sudoers only).
+"""
